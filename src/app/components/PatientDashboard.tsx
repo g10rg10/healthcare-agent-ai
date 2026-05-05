@@ -422,7 +422,7 @@ export default function PatientDashboard({ onBackToSelector, onSwitchToDoctor }:
                 </div>
 
                 {/* Smart Renaming Button - only show if files uploaded, no suggestions showing, and hasn't been applied yet */}
-                {uploadedFiles.length > 0 && aiRenameSuggestions.length === 0 && !hasAppliedAI && activeTab === 'upload' && (
+                {uploadedFiles.length > 0 && aiRenameSuggestions.length === 0 && activeTab === 'upload' && (
                   <button
                     onClick={triggerAIOrganization}
                     className="flex items-center gap-2 px-3 py-2 rounded-lg font-medium text-sm bg-gradient-to-r from-purple-600 to-blue-600 text-white hover:from-purple-700 hover:to-blue-700 transition-all shadow-md hover:shadow-lg group animate-fade-in"
@@ -477,22 +477,16 @@ export default function PatientDashboard({ onBackToSelector, onSwitchToDoctor }:
 
                       <div className="space-y-3">
                         {aiRenameSuggestions.map((suggestion, index) => (
-                          <div key={index} className="bg-white rounded-lg p-3 border border-purple-200">
-                            <div className="flex items-center gap-3">
-                              <div className="flex-1 min-w-0">
-                                <p className="text-xs text-gray-500 mb-1">Original</p>
-                                <p className="text-sm font-medium text-gray-700 truncate">{suggestion.original}</p>
-                              </div>
-                              <svg className="w-5 h-5 text-purple-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <div key={index} className="bg-white rounded-lg px-3 py-2 border border-purple-200">
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm text-gray-600 truncate flex-1 min-w-0">{suggestion.original}</span>
+                              <svg className="w-4 h-4 text-purple-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
                               </svg>
-                              <div className="flex-1 min-w-0">
-                                <p className="text-xs text-purple-600 mb-1">Suggested</p>
-                                <p className="text-sm font-semibold text-purple-900 truncate">{suggestion.suggested}</p>
-                              </div>
+                              <span className="text-sm font-semibold text-purple-900 truncate flex-1 min-w-0">{suggestion.suggested}</span>
                               <button
                                 onClick={() => applySingleRename(index)}
-                                className="px-3 py-1.5 rounded-lg font-medium text-xs text-white bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 transition-all flex-shrink-0"
+                                className="px-2.5 py-1 rounded-lg font-medium text-xs text-white bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 transition-all flex-shrink-0"
                               >
                                 Accept
                               </button>
@@ -518,11 +512,11 @@ export default function PatientDashboard({ onBackToSelector, onSwitchToDoctor }:
                         {uploadedFiles.map((fileObj, index) => (
                           <div
                             key={index}
-                            className="flex items-center justify-between p-3 bg-green-50 border border-green-200 rounded-xl"
+                            className="flex items-center justify-between p-3 bg-blue-50 border border-blue-200 rounded-xl"
                           >
                             <div className="flex items-center gap-3 flex-1 min-w-0">
-                              <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center flex-shrink-0">
-                                <FileText className="w-5 h-5 text-green-600" />
+                              <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0">
+                                <FileText className="w-5 h-5 text-blue-600" />
                               </div>
                               <div className="min-w-0 flex-1">
                                 <p className="text-sm font-medium text-gray-900 truncate">{fileObj.name}</p>
