@@ -42,43 +42,36 @@ export async function sendMessage(
     ? `${SYSTEM_PROMPT}\n\n## Current Patient Context\n${patientContext}`
     : SYSTEM_PROMPT;
 
+  // Build conversation history (must alternate user/model)
   const contents = [
-    // Inject system prompt as first user/model turn (Gemini doesn't have a system role in v1beta)
-    { role: 'user', parts: [{ text: systemWithContext }] },
-    { role: 'model', parts: [{ text: 'Understood. I am ready to assist as the OEC healthcare AI agent.' }] },
-    // Previous conversation
     ...history.map(msg => ({
       role: msg.role === 'assistant' ? 'model' : 'user',
       parts: [{ text: msg.content }]
     })),
-    // New message
     { role: 'user', parts: [{ text: userMessage }] }
   ];
+
+  // Use systemInstruction for the system prompt (supported in v1beta)
+  const body: Record<string, unknown> = {
+    systemInstruction: { parts: [{ text: systemWithContext }] },
+    contents,
+    generationConfig: {
+      temperature: 0.3,
+      maxOutputTokens: 1024
+    }
+  };
 
   const response = await fetch(`${GEMINI_API_URL}?key=${apiKey}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents,
-      generationConfig: {
-        temperature: 0.3,
-        topK: 40,
-        topP: 0.95,
-        maxOutputTokens: 1024
-      },
-      safetySettings: [
-        { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
-        { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
-        { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
-        { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' }
-      ]
-    })
+    body: JSON.stringify(body)
   });
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({}));
     console.error('Gemini API error:', error);
-    throw new Error(`Gemini API error: ${response.status}`);
+    const message = error?.error?.message ?? `HTTP ${response.status}`;
+    throw new Error(message);
   }
 
   const data = await response.json();

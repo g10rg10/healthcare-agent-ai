@@ -1009,10 +1009,11 @@ export default function DoctorDashboard({ onBackToSelector, onSwitchToPatient }:
 
       const response = await sendMessage(userMessage, chatMessages, patientContext);
       setChatMessages(prev => [...prev, { role: 'assistant', content: response }]);
-    } catch {
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Unknown error';
       setChatMessages(prev => [
         ...prev,
-        { role: 'assistant', content: '⚠️ Error contacting AI service. Please check your API key and try again.' }
+        { role: 'assistant', content: `⚠️ AI error: ${msg}` }
       ]);
     } finally {
       setIsAIThinking(false);
