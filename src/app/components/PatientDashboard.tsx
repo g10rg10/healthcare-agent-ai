@@ -479,11 +479,13 @@ export default function PatientDashboard({ onBackToSelector, onSwitchToDoctor }:
                         {aiRenameSuggestions.map((suggestion, index) => (
                           <div key={index} className="bg-white rounded-lg px-3 py-2 border border-purple-200">
                             <div className="flex items-center gap-2">
-                              <span className="text-sm text-gray-600 truncate flex-1 min-w-0">{suggestion.original}</span>
-                              <svg className="w-4 h-4 text-purple-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                              </svg>
-                              <span className="text-sm font-semibold text-purple-900 truncate flex-1 min-w-0">{suggestion.suggested}</span>
+                              <div className="flex items-center gap-1.5 flex-1 min-w-0 overflow-hidden">
+                                <span className="text-sm text-gray-400 truncate shrink min-w-0 line-through">{suggestion.original}</span>
+                                <svg className="w-4 h-4 text-purple-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                                </svg>
+                                <span className="text-sm font-semibold text-purple-900 truncate shrink min-w-0">{suggestion.suggested}</span>
+                              </div>
                               <button
                                 onClick={() => applySingleRename(index)}
                                 className="px-2.5 py-1 rounded-lg font-medium text-xs text-white bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 transition-all flex-shrink-0"
