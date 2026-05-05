@@ -477,8 +477,11 @@ export default function PatientDashboard({ onBackToSelector, onSwitchToDoctor }:
 
                       <div className="space-y-3">
                         {aiRenameSuggestions.map((suggestion, index) => (
-                          <div key={index} className="bg-white rounded-lg px-3 py-2 border border-purple-200">
-                            <div className="flex items-center gap-2">
+                          <div key={index} className="bg-white rounded-xl p-3 border border-purple-200">
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-lg bg-purple-100 flex items-center justify-center flex-shrink-0">
+                                <FileText className="w-5 h-5 text-purple-600" />
+                              </div>
                               <div className="flex items-center gap-1.5 flex-1 min-w-0 overflow-hidden">
                                 <span className="text-sm text-gray-400 truncate shrink min-w-0 line-through">{suggestion.original}</span>
                                 <svg className="w-4 h-4 text-purple-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
