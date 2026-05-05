@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Search, FileText, Upload, User, AlertCircle, CheckCircle, Clock, Scan, Send, RotateCcw, Edit3, Bot, Download, RefreshCw, Edit2, X as XIcon, Check, Plus, Trash2, Sparkles, Calendar, Activity, TrendingUp, Pill, Users, Heart, Mail, Phone, Eye, UserX, MapPin } from 'lucide-react';
-import { sendMessage, buildPatientContext } from '../../../services/gemini';
+import { sendMessage, buildPatientContext } from '../../services/gemini';
 
 interface DoctorDashboardProps {
   onBackToSelector?: () => void;
