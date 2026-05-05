@@ -1,4 +1,6 @@
-const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent';
+// Using Groq API (OpenAI-compatible, free tier available globally)
+const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
+const GROQ_MODEL = 'llama-3.3-70b-versatile';
 
 const SYSTEM_PROMPT = `You are an AI agent integrated into a hospital system (Ospedale Civico di Lugano - OEC), supporting both patients and healthcare professionals. You must generate complete, structured, and directly actionable outputs compatible with hospital information systems.
 
@@ -33,49 +35,44 @@ export async function sendMessage(
   history: ChatMessage[],
   patientContext?: string
 ): Promise<string> {
-  const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+  const apiKey = import.meta.env.VITE_GROQ_API_KEY;
   if (!apiKey) {
-    return '⚠️ Gemini API key not configured. Add VITE_GEMINI_API_KEY to your .env file.';
+    return '⚠️ Groq API key not configured. Add VITE_GROQ_API_KEY to your .env file.';
   }
 
-  const systemWithContext = patientContext
+  const systemContent = patientContext
     ? `${SYSTEM_PROMPT}\n\n## Current Patient Context\n${patientContext}`
     : SYSTEM_PROMPT;
 
-  // Build conversation history (must alternate user/model)
-  const contents = [
-    ...history.map(msg => ({
-      role: msg.role === 'assistant' ? 'model' : 'user',
-      parts: [{ text: msg.content }]
-    })),
-    { role: 'user', parts: [{ text: userMessage }] }
+  const messages = [
+    { role: 'system', content: systemContent },
+    ...history.map(msg => ({ role: msg.role, content: msg.content })),
+    { role: 'user', content: userMessage }
   ];
 
-  // Use systemInstruction for the system prompt (supported in v1beta)
-  const body: Record<string, unknown> = {
-    systemInstruction: { parts: [{ text: systemWithContext }] },
-    contents,
-    generationConfig: {
-      temperature: 0.3,
-      maxOutputTokens: 1024
-    }
-  };
-
-  const response = await fetch(`${GEMINI_API_URL}?key=${apiKey}`, {
+  const response = await fetch(GROQ_API_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body)
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`
+    },
+    body: JSON.stringify({
+      model: GROQ_MODEL,
+      messages,
+      temperature: 0.3,
+      max_tokens: 1024
+    })
   });
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({}));
-    console.error('Gemini API error:', error);
+    console.error('Groq API error:', error);
     const message = error?.error?.message ?? `HTTP ${response.status}`;
     throw new Error(message);
   }
 
   const data = await response.json();
-  return data.candidates?.[0]?.content?.parts?.[0]?.text ?? 'No response from AI.';
+  return data.choices?.[0]?.message?.content ?? 'No response from AI.';
 }
 
 export function buildPatientContext(patient: {
