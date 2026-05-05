@@ -1,4 +1,4 @@
-const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash-latest:generateContent';
+const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent';
 
 const SYSTEM_PROMPT = `You are an AI agent integrated into a hospital system (Ospedale Civico di Lugano - OEC), supporting both patients and healthcare professionals. You must generate complete, structured, and directly actionable outputs compatible with hospital information systems.
 
