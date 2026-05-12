@@ -6,7 +6,7 @@ import { User, UserCog, ArrowRight } from 'lucide-react';
 
 type ViewMode = 'selector' | 'patient' | 'doctor';
 
-export default function UseCaseSelector() {
+export default function UseCaseSelector({ onShowStory }: { onShowStory?: () => void } = {}) {
   const [viewMode, setViewMode] = useState<ViewMode>('selector');
 
   if (viewMode === 'patient') {

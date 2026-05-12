@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { Search, FileText, Upload, User, AlertCircle, CheckCircle, Clock, Scan, Send, RotateCcw, Edit3, Bot, Download, RefreshCw, Edit2, X as XIcon, Check, Plus, Trash2, Sparkles, Calendar, Activity, TrendingUp, Pill, Users, Heart, Mail, Phone, Eye, UserX, MapPin, Mic, MicOff } from 'lucide-react';
 
 const getTestPrompts = (name: string) => [
@@ -76,12 +76,21 @@ export default function DoctorDashboard({ onBackToSelector, onSwitchToPatient }:
   const chatEndRef = useRef<HTMLDivElement>(null);
   const chatScrollRef = useRef<HTMLDivElement>(null);
 
-  // Autoscroll to bottom when chat messages change — scroll the container, not the page
+  // Autoscroll to bottom when chat messages change
   useEffect(() => {
     if (chatScrollRef.current) {
       chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
     }
-  }, [chatMessages]);
+  }, [chatMessages.length]);
+
+  // Cleanup speech recognition and meeting timer on unmount
+  useEffect(() => {
+    return () => {
+      recognitionRef.current?.abort();
+      meetingRecognitionRef.current?.abort();
+      if (meetingTimerRef.current) clearInterval(meetingTimerRef.current);
+    };
+  }, []);
 
   // Past conversations by patient
   const [pastConversations, setPastConversations] = useState<{ [key: string]: Array<{date: string, summary: string, messages: Array<{role: 'user' | 'assistant', content: string}>}> }>({
@@ -1301,10 +1310,13 @@ ${meetingTranscriptRef.current}`,
     setPendingAppointment(null);
   };
 
+  const testPrompts = useMemo(
+    () => getTestPrompts(currentPatient?.name ?? 'the patient'),
+    [currentPatient?.name]
+  );
+
   const generateRandomPrompt = () => {
-    const prompts = getTestPrompts(currentPatient?.name ?? 'the patient');
-    const prompt = prompts[Math.floor(Math.random() * prompts.length)];
-    setChatInput(prompt);
+    setChatInput(testPrompts[Math.floor(Math.random() * testPrompts.length)]);
   };
 
   const handleSendMessage = async (overrideMessage?: string) => {
@@ -1435,7 +1447,9 @@ ${meetingTranscriptRef.current}`,
       const cleanResponse = response.replace(/\nAPPT:\{[^}]+\}/g, '').trim();
       let parsedAppt: {date: string; time: string; notes: string} | null = null;
       if (apptMatch) {
-        try { parsedAppt = JSON.parse(`{${apptMatch[1]}}`); } catch {}
+        try { parsedAppt = JSON.parse(`{${apptMatch[1]}}`); } catch (e) {
+          console.error('Failed to parse APPT tag:', e);
+        }
       }
 
       setChatMessages(prev => {
