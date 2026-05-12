@@ -883,7 +883,7 @@ export default function DoctorDashboard({ onBackToSelector, onSwitchToPatient }:
     ));
     setChatMessages(prev => prev.map(msg =>
       (msg as any).medId === medId && msg.role === 'suggestion'
-        ? { ...msg, role: 'assistant' as const, content: `✓ Farmaco aggiornato a **${suggestedName}**.`, medId: undefined, suggestedName: undefined }
+        ? { ...msg, role: 'assistant' as const, content: `✓ Medication updated to **${suggestedName}**.`, medId: undefined, suggestedName: undefined }
         : msg
     ));
   };
@@ -1382,7 +1382,7 @@ ${meetingTranscriptRef.current}`,
         ));
         setChatMessages(prev => [...prev, {
           role: 'assistant',
-          content: `Il suggerimento per **${panelMatch.original}** è stato aggiornato in **${finalName}**. Accettalo nel pannello per applicare la modifica.`
+          content: `Rename suggestion for **${panelMatch.original}** updated to **${finalName}**. Accept it in the panel to apply.`
         }]);
         return;
       }

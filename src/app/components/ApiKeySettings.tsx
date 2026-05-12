@@ -57,7 +57,7 @@ export default function ApiKeySettings() {
               className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#3D38F5] focus:border-transparent"
             />
             <p className="text-xs text-gray-500 mt-2">
-              La chiave viene salvata localmente nel browser e non viene mai caricata su GitHub.
+              The key is stored locally in the browser and is never uploaded to GitHub.
             </p>
 
             <button
@@ -69,10 +69,10 @@ export default function ApiKeySettings() {
               {saved ? (
                 <>
                   <Check className="w-4 h-4" />
-                  Salvata!
+                  Saved!
                 </>
               ) : (
-                'Salva chiave'
+                'Save key'
               )}
             </button>
           </div>

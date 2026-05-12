@@ -56,7 +56,7 @@ export async function sendMessage(
   const rawKey = import.meta.env.VITE_GROQ_API_KEY || localStorage.getItem('groq_api_key') || '';
   const apiKey = rawKey.startsWith('gsk_') ? rawKey : '';
   if (!apiKey) {
-    return '⚠️ Groq API key non configurata. Clicca l\'ingranaggio ⚙️ nella home per inserire la chiave API.';
+    return '⚠️ Groq API key not configured. Click the gear icon ⚙️ on the home screen to enter your API key.';
   }
 
   const systemContent = patientContext
