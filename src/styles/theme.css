@@ -15,6 +15,11 @@
   animation: fade-in 0.3s ease-out;
 }
 
+@keyframes voiceBar {
+  from { transform: scaleY(0.4); opacity: 0.5; }
+  to   { transform: scaleY(1);   opacity: 1; }
+}
+
 :root {
   --font-size: 16px;
   --background: #ffffff;

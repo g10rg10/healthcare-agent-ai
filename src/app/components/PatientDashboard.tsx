@@ -19,6 +19,7 @@ export default function PatientDashboard({ onBackToSelector, onSwitchToDoctor }:
     { name: 'ID/Passport Copy', uploaded: false }
   ]);
   const [aiRenameSuggestions, setAiRenameSuggestions] = useState<Array<{original: string, suggested: string, index: number}>>([]);
+  const [renamePanelVisible, setRenamePanelVisible] = useState(false);
   const [hasAppliedAI, setHasAppliedAI] = useState(false);
   const [showRenameDialog, setShowRenameDialog] = useState(false);
   const [chatMessages, setChatMessages] = useState<Array<{role: 'user' | 'assistant', content: string}>>([]);
@@ -162,6 +163,8 @@ export default function PatientDashboard({ onBackToSelector, onSwitchToDoctor }:
       };
     });
     setAiRenameSuggestions(suggestions);
+    // Trigger CSS transition on next frame so panel animates in
+    setTimeout(() => setRenamePanelVisible(true), 10);
   };
 
   // Apply single rename suggestion
@@ -456,7 +459,13 @@ export default function PatientDashboard({ onBackToSelector, onSwitchToDoctor }:
 
                   {/* AI Rename Suggestions */}
                   {aiRenameSuggestions.length > 0 && (
-                    <div className="bg-gradient-to-br from-purple-50 via-blue-50 to-purple-50 border-2 border-purple-300 rounded-xl p-4 lg:p-6 space-y-4 animate-fade-in">
+                    <div
+                      className="bg-gradient-to-br from-purple-50 via-blue-50 to-purple-50 border-2 border-purple-300 rounded-xl p-4 lg:p-6 space-y-4 transition-all duration-300 ease-out"
+                      style={{
+                        opacity: renamePanelVisible ? 1 : 0,
+                        transform: renamePanelVisible ? 'translateY(0)' : 'translateY(-8px)',
+                      }}
+                    >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
                           <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center">
@@ -468,7 +477,7 @@ export default function PatientDashboard({ onBackToSelector, onSwitchToDoctor }:
                           </div>
                         </div>
                         <button
-                          onClick={() => setAiRenameSuggestions([])}
+                          onClick={() => { setAiRenameSuggestions([]); setRenamePanelVisible(false); }}
                           className="text-gray-400 hover:text-gray-600"
                         >
                           <XIcon className="w-5 h-5" />
@@ -491,7 +500,7 @@ export default function PatientDashboard({ onBackToSelector, onSwitchToDoctor }:
                               </div>
                               <button
                                 onClick={() => applySingleRename(index)}
-                                className="px-2.5 py-1 rounded-lg font-medium text-xs text-white bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 transition-all flex-shrink-0"
+                                className="px-3 py-2 rounded-lg font-medium text-sm text-white bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 transition-all flex-shrink-0 h-10"
                               >
                                 Accept
                               </button>
@@ -632,7 +641,7 @@ export default function PatientDashboard({ onBackToSelector, onSwitchToDoctor }:
                     <>
                       {sentDocs.map((doc) => (
                         <div key={doc.id} className="border border-gray-200 rounded-xl p-4 lg:p-4 hover:border-[#3D38F5] transition-colors">
-                          <div className="flex flex-col lg:flex-row items-start gap-4">
+                          <div className="flex flex-col lg:flex-row items-center gap-4">
                             <div className="flex items-start gap-4 flex-1 w-full">
                               <div className="w-12 h-12 lg:w-12 lg:h-12 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: '#3D38F5' }}>
                                 <FileText className="w-6 h-6 text-white" />
@@ -640,9 +649,6 @@ export default function PatientDashboard({ onBackToSelector, onSwitchToDoctor }:
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-start gap-2">
                                   <h3 className="text-base lg:text-base font-semibold text-gray-900 truncate flex-1">{doc.name}</h3>
-                                  <span className="px-2 py-0.5 bg-green-100 text-green-700 text-xs font-medium rounded-full whitespace-nowrap">
-                                    Sent
-                                  </span>
                                 </div>
                                 <p className="text-sm lg:text-sm text-gray-600 mt-1">Sent to: {doc.from}</p>
                                 <div className="flex flex-wrap gap-3 mt-2 text-xs lg:text-xs text-gray-500">
@@ -735,9 +741,6 @@ export default function PatientDashboard({ onBackToSelector, onSwitchToDoctor }:
                       </div>
                     ))}
 
-                    <button className="w-full px-4 py-2 bg-gray-100 rounded-lg text-gray-700 font-medium text-sm hover:bg-gray-200 transition-colors">
-                      View All Appointments
-                    </button>
                 </div>
               </div>
             </div>
