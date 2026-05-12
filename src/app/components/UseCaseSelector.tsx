@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import PatientDashboard from './PatientDashboard';
 import DoctorDashboard from './DoctorDashboard';
+import ApiKeySettings from './ApiKeySettings';
 import { User, UserCog, ArrowRight } from 'lucide-react';
 
 type ViewMode = 'selector' | 'patient' | 'doctor';
@@ -115,10 +116,11 @@ export default function UseCaseSelector() {
         </div>
 
         {/* Footer */}
-        <div className="mt-8 text-center">
+        <div className="mt-8 flex items-center justify-center gap-3">
           <p className="text-sm text-gray-500">
             Protected by Swiss Federal Data Protection Act (FADP) • Ospedale Civico di Lugano (OEC)
           </p>
+          <ApiKeySettings />
         </div>
       </div>
     </div>

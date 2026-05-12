@@ -1,5 +1,18 @@
 import { useState, useEffect, useRef } from 'react';
-import { Search, FileText, Upload, User, AlertCircle, CheckCircle, Clock, Scan, Send, RotateCcw, Edit3, Bot, Download, RefreshCw, Edit2, X as XIcon, Check, Plus, Trash2, Sparkles, Calendar, Activity, TrendingUp, Pill, Users, Heart, Mail, Phone, Eye, UserX, MapPin } from 'lucide-react';
+import { Search, FileText, Upload, User, AlertCircle, CheckCircle, Clock, Scan, Send, RotateCcw, Edit3, Bot, Download, RefreshCw, Edit2, X as XIcon, Check, Plus, Trash2, Sparkles, Calendar, Activity, TrendingUp, Pill, Users, Heart, Mail, Phone, Eye, UserX, MapPin, Mic, MicOff } from 'lucide-react';
+
+const getTestPrompts = (name: string) => [
+  `Show me ${name}'s latest blood test results, check for any allergy conflicts with current medications, and flag any abnormal lab values`,
+  `What medications is ${name} currently on? Are there any known drug interactions or allergy contraindications?`,
+  `Give me a full clinical overview of ${name}: active conditions, current medications, allergies, and latest lab results`,
+  `${name} is reporting new symptoms — summarize the current clinical picture and list what to verify before the consultation`,
+  `What are the 3 most critical clinical points to keep in mind for ${name}'s upcoming visit, including drugs to avoid and out-of-range labs?`,
+  `Pull ${name}'s full medical history and documented allergies, then assess the overall risk profile`,
+  `Are there any drug interactions or dosage concerns in ${name}'s current medication regimen?`,
+  `Summarize ${name}'s chronic conditions and tell me whether current medications are appropriately managing them`,
+  `What lab values for ${name} are outside the normal range, and what is the clinical significance?`,
+  `I have a visit with ${name} shortly — give me a quick pre-visit briefing: key issues, alerts, and recommended checks`,
+];
 import { sendMessage, buildPatientContext } from '../../services/gemini';
 
 interface DoctorDashboardProps {
@@ -20,27 +33,58 @@ export default function DoctorDashboard({ onBackToSelector, onSwitchToPatient }:
   const [patientToDelete, setPatientToDelete] = useState<string | null>(null);
   const [newPatientCounter, setNewPatientCounter] = useState(1);
   const [uploadedAIFiles, setUploadedAIFiles] = useState<string[]>([]);
+  const [extraDocuments, setExtraDocuments] = useState<Array<{id: number; name: string; type: string; date: string; size: string}>>([]);
   const [isAIProcessing, setIsAIProcessing] = useState(false);
   const [aiProcessingSteps, setAiProcessingSteps] = useState<string[]>([]);
   const [sharedWithTeam, setSharedWithTeam] = useState<{[key: string]: boolean}>({});
-  const [chatMessages, setChatMessages] = useState<Array<{role: 'user' | 'assistant', content: string}>>([]);
-  const [rightTab, setRightTab] = useState<'appointment' | 'documents'>('documents');
+  const [chatMessages, setChatMessages] = useState<Array<{role: 'user' | 'assistant' | 'suggestion' | 'appointment-confirm', content: string, medId?: number, originalName?: string, suggestedName?: string, appointmentData?: {date: string; time: string; notes: string}}>>([]);
+  const [rightTab, setRightTab] = useState<'appointment' | 'documents' | 'meetings'>('documents');
   const [showRenameDialog, setShowRenameDialog] = useState(false);
+  const [docRenameSuggestions, setDocRenameSuggestions] = useState<Array<{id: number; original: string; suggested: string}>>([]);
+  const [docRenamePanelVisible, setDocRenamePanelVisible] = useState(false);
+  const [editingRenameId, setEditingRenameId] = useState<number | null>(null);
+  const [editingRenameValue, setEditingRenameValue] = useState('');
+  const [docNameOverrides, setDocNameOverrides] = useState<Record<string | number, string>>({});
   const [showPastConversations, setShowPastConversations] = useState(false);
+  const [activeConvTab, setActiveConvTab] = useState<'list' | 'current' | number>('current');
+  const [showPastConvList, setShowPastConvList] = useState(false);
   const [isAIThinking, setIsAIThinking] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
+  const [interimTranscript, setInterimTranscript] = useState('');
+  const recognitionRef = useRef<SpeechRecognition | null>(null);
 
-  // Chat autoscroll ref
+  // Pending appointment from AI
+  const [pendingAppointment, setPendingAppointment] = useState<{ date: string; time: string; notes: string } | null>(null);
+
+  // Meeting recording
+  const [meetingState, setMeetingState] = useState<'idle' | 'recording' | 'review'>('idle');
+  const [meetingTranscript, setMeetingTranscript] = useState('');
+  const [meetingDuration, setMeetingDuration] = useState(0);
+  const [meetingSummary, setMeetingSummary] = useState('');
+  const [isSummarizing, setIsSummarizing] = useState(false);
+  const [savedMeetings, setSavedMeetings] = useState<Array<{
+    id: number; patientId: string; patientName: string;
+    date: string; duration: number; transcript: string; summary?: string;
+  }>>([]);
+  const [viewingMeeting, setViewingMeeting] = useState<number | null>(null);
+  const meetingRecognitionRef = useRef<SpeechRecognition | null>(null);
+  const meetingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const meetingTranscriptRef = useRef('');
+
+  // Chat autoscroll refs
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const chatScrollRef = useRef<HTMLDivElement>(null);
 
-  // Autoscroll to bottom when chat messages change
+  // Autoscroll to bottom when chat messages change — scroll the container, not the page
   useEffect(() => {
-    if (chatEndRef.current) {
-      chatEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    if (chatScrollRef.current) {
+      chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
     }
   }, [chatMessages]);
 
   // Past conversations by patient
-  const pastConversations: { [key: string]: Array<{date: string, summary: string, messages: Array<{role: 'user' | 'assistant', content: string}>}> } = {
+  const [pastConversations, setPastConversations] = useState<{ [key: string]: Array<{date: string, summary: string, messages: Array<{role: 'user' | 'assistant', content: string}>}> }>({
     'CH-2026-4521': [
       {
         date: '2026-04-28',
@@ -71,7 +115,7 @@ export default function DoctorDashboard({ onBackToSelector, onSwitchToPatient }:
         ]
       }
     ]
-  };
+  });
 
   // Get initial patient-specific data
   const getInitialPatientData = (patientId: string | null) => {
@@ -129,7 +173,8 @@ export default function DoctorDashboard({ onBackToSelector, onSwitchToPatient }:
             prescribedBy: 'Dr. med. Peter Müller',
             status: 'active',
             hasError: true,
-            confirmed: false
+            confirmed: false,
+            suggestedName: 'Bisoprolol-Mepha 2.5 mg'
           }
         ]
       };
@@ -659,15 +704,27 @@ export default function DoctorDashboard({ onBackToSelector, onSwitchToPatient }:
     setEditingSection(null);
     setSharedWithTeam({});
     setChatMessages([]);
+    setUploadedAIFiles([]);
+    setExtraDocuments([]);
+    setAiProcessingSteps([]);
+    setDocRenameSuggestions([]);
+    setDocRenamePanelVisible(false);
+    setDocNameOverrides({});
+    setActiveConvTab('current');
+    setShowPastConvList(false);
   }, [selectedPatient]);
 
   const [patients, setPatients] = useState([
     {
       id: 'CH-2026-4521',
       name: 'Lucia Rossi',
+      dob: '17 April 1965',
       age: 61,
-      appointmentDate: '2026-04-25',
+      appointmentDate: '2026-05-12',
       appointmentTime: '14:30',
+      appointments: [
+        { date: 'May 12, 2026', time: '14:30', room: 'Room 108, OEC Lugano', duration: '45 minutes', status: 'Confirmed', notes: 'Routine follow-up for cardiovascular monitoring and lab result review.' }
+      ],
       status: 'partial',
       uploadedDocs: 3,
       missingDocs: 2,
@@ -677,9 +734,14 @@ export default function DoctorDashboard({ onBackToSelector, onSwitchToPatient }:
     {
       id: 'CH-2026-4518',
       name: 'John Doe',
+      dob: '15 May 1981',
       age: 45,
-      appointmentDate: '2026-04-25',
+      appointmentDate: '2026-05-08',
       appointmentTime: '10:00',
+      appointments: [
+        { date: 'May 8, 2026', time: '10:00', room: 'Room 204, OEC Lugano', duration: '30 minutes', status: 'Confirmed', notes: 'Follow-up consultation for medication review and health status assessment.' },
+        { date: 'May 19, 2026', time: '15:00', room: 'Room 311, OEC Lugano', duration: '60 minutes', status: 'Pending', notes: 'Endocrinology specialist visit — diabetes management review and HbA1c evaluation.' }
+      ],
       status: 'complete',
       uploadedDocs: 8,
       missingDocs: 0,
@@ -689,9 +751,13 @@ export default function DoctorDashboard({ onBackToSelector, onSwitchToPatient }:
     {
       id: 'CH-2026-4512',
       name: 'Hans Schmidt',
+      dob: '12 March 1988',
       age: 38,
-      appointmentDate: '2026-04-26',
+      appointmentDate: '2026-05-21',
       appointmentTime: '09:00',
+      appointments: [
+        { date: 'May 21, 2026', time: '09:00', room: 'Room 015, OEC Lugano', duration: '30 minutes', status: 'Confirmed', notes: 'Initial consultation and documentation intake for new patient onboarding.' }
+      ],
       status: 'none',
       uploadedDocs: 0,
       missingDocs: 5,
@@ -707,9 +773,7 @@ export default function DoctorDashboard({ onBackToSelector, onSwitchToPatient }:
     switch (tabId) {
       case 'medications':
         const hasMedicationErrors = medications.some(med => med.hasError);
-        const noMedications = medications.length === 0;
         if (hasMedicationErrors) return 'error';
-        if (noMedications) return 'warning';
         return 'ok';
 
       default:
@@ -813,6 +877,17 @@ export default function DoctorDashboard({ onBackToSelector, onSwitchToPatient }:
     ));
   };
 
+  const acceptMedSubstitution = (medId: number, suggestedName: string) => {
+    setMedications(prev => prev.map(m =>
+      m.id === medId ? { ...m, name: suggestedName, hasError: false, confirmed: true, suggestedName: undefined } : m
+    ));
+    setChatMessages(prev => prev.map(msg =>
+      (msg as any).medId === medId && msg.role === 'suggestion'
+        ? { ...msg, role: 'assistant' as const, content: `✓ Farmaco aggiornato a **${suggestedName}**.`, medId: undefined, suggestedName: undefined }
+        : msg
+    ));
+  };
+
   const addNewPatient = () => {
     const newId = `CH-2026-${5000 + patients.length}`;
     const newPatient = {
@@ -842,14 +917,19 @@ export default function DoctorDashboard({ onBackToSelector, onSwitchToPatient }:
       });
       setUploadedAIFiles(prev => [...prev, ...newFiles]);
 
-      // Switch to documents tab and initialize checklist
-      setRightTab('documents');
-      initializeDocumentChecklist(newFiles);
+      // Add uploaded files to the center Documents list
+      const today = new Date().toISOString().split('T')[0];
+      const newDocs = files.map((file, i) => ({
+        id: Date.now() + i,
+        name: file.name.replace(/\.[^/.]+$/, ''),
+        type: 'Uploaded Document',
+        date: today,
+        size: file.size > 1048576 ? `${(file.size / 1048576).toFixed(1)} MB` : `${(file.size / 1024).toFixed(0)} KB`
+      }));
+      setExtraDocuments(prev => [...prev, ...newDocs]);
 
-      // Trigger AI processing for Hans Schmidt
-      if (selectedPatient === 'CH-2026-4512') {
-        processDocumentsWithAI(newFiles);
-      }
+      setRightTab('documents');
+      setActiveConvTab('current');
     }
   };
 
@@ -986,29 +1066,401 @@ export default function DoctorDashboard({ onBackToSelector, onSwitchToPatient }:
     }));
   };
 
-  const handleSendMessage = async () => {
-    if (!chatInput.trim() || isAIThinking) return;
+  const renderMd = (text: string) =>
+    text
+      .replace(/^#{1,3}\s+(.+)$/gm, '<strong>$1</strong>')
+      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+      .replace(/^[\*\-]\s+(.+)$/gm, '• $1')
+      .replace(/\n/g, '<br />');
 
-    const userMessage = chatInput;
-    setChatMessages(prev => [...prev, { role: 'user', content: userMessage }]);
-    setChatInput('');
+  const saveCurrentConversation = () => {
+    if (!selectedPatient || chatMessages.length === 0) return;
+    const firstUserMsg = chatMessages.find(m => m.role === 'user');
+    const summary = firstUserMsg
+      ? firstUserMsg.content.slice(0, 50) + (firstUserMsg.content.length > 50 ? '…' : '')
+      : 'Conversation';
+    const today = new Date().toISOString().split('T')[0];
+    setPastConversations(prev => ({
+      ...prev,
+      [selectedPatient]: [
+        { date: today, summary, messages: chatMessages },
+        ...(prev[selectedPatient] ?? [])
+      ]
+    }));
+    setChatMessages([]);
+  };
+
+  const generateDocRenameSuggestions = () => {
+    const suggestions = uploadedAIFiles.map((fileName, idx) => {
+      const lowerName = fileName.toLowerCase();
+      const ext = fileName.split('.').pop() || '';
+      let suggestedName = '';
+      if (lowerName.includes('medical') || lowerName.includes('history') || lowerName.includes('report') || lowerName.includes('cardio')) {
+        suggestedName = `Medical History Report.${ext}`;
+      } else if (lowerName.includes('blood') || lowerName.includes('lab') || lowerName.includes('test')) {
+        suggestedName = `Blood Test Results.${ext}`;
+      } else if (lowerName.includes('med') || lowerName.includes('prescription') || lowerName.includes('pharma')) {
+        suggestedName = `Current Medications List.${ext}`;
+      } else if (lowerName.includes('insurance') || lowerName.includes('card')) {
+        suggestedName = `Insurance Card.${ext}`;
+      } else if (lowerName.includes('id') || lowerName.includes('passport')) {
+        suggestedName = `ID-Passport Copy.${ext}`;
+      } else if (lowerName.includes('mri') || lowerName.includes('scan') || lowerName.includes('imaging') || lowerName.includes('xray') || lowerName.includes('x-ray')) {
+        suggestedName = `MRI Scan Report.${ext}`;
+      } else if (lowerName.includes('physio') || lowerName.includes('therapy') || lowerName.includes('rehabilitation')) {
+        suggestedName = `Physiotherapy Report.${ext}`;
+      } else {
+        suggestedName = `Document ${idx + 1}.${ext}`;
+      }
+      return { id: idx, original: fileName, suggested: suggestedName };
+    });
+    setDocRenameSuggestions(suggestions);
+    setTimeout(() => setDocRenamePanelVisible(true), 10);
+  };
+
+  const applyDocRename = (suggestionId: number, newName?: string) => {
+    const suggestion = docRenameSuggestions.find(s => s.id === suggestionId);
+    if (!suggestion) return;
+    const finalName = newName ?? suggestion.suggested;
+    setExtraDocuments(prev => prev.map(doc =>
+      doc.name === suggestion.original.replace(/\.[^/.]+$/, '')
+        ? { ...doc, name: finalName.replace(/\.[^/.]+$/, '') }
+        : doc
+    ));
+    setUploadedAIFiles(prev => prev.map(f => f === suggestion.original ? finalName : f));
+    setDocRenameSuggestions(prev => prev.filter(s => s.id !== suggestionId));
+    if (docRenameSuggestions.length <= 1) setDocRenamePanelVisible(false);
+  };
+
+  const applyAllDocRenames = () => {
+    docRenameSuggestions.forEach(s => {
+      setExtraDocuments(prev => prev.map(doc =>
+        doc.name === s.original.replace(/\.[^/.]+$/, '')
+          ? { ...doc, name: s.suggested.replace(/\.[^/.]+$/, '') }
+          : doc
+      ));
+      setUploadedAIFiles(prev => prev.map(f => f === s.original ? s.suggested : f));
+    });
+    setDocRenameSuggestions([]);
+    setDocRenamePanelVisible(false);
+  };
+
+  const handleVoiceRecord = () => {
+    const SpeechRecognitionAPI =
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognitionAPI) {
+      alert('Voice recognition is not supported in this browser. Try Chrome or Edge.');
+      return;
+    }
+
+    if (isRecording) {
+      recognitionRef.current?.stop();
+      return;
+    }
+
+    const recognition: SpeechRecognition = new SpeechRecognitionAPI();
+    recognition.lang = 'it-IT';
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.maxAlternatives = 1;
+    recognitionRef.current = recognition;
+
+    recognition.onstart = () => {
+      setIsRecording(true);
+      setIsTranscribing(false);
+      setInterimTranscript('');
+    };
+
+    recognition.onresult = (event: SpeechRecognitionEvent) => {
+      let interim = '';
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const result = event.results[i];
+        if (result.isFinal) {
+          const finalText = result[0].transcript;
+          setChatInput(prev => (prev ? prev + ' ' : '') + finalText.trim());
+          setInterimTranscript('');
+        } else {
+          interim += result[0].transcript;
+        }
+      }
+      setInterimTranscript(interim);
+    };
+
+    recognition.onend = () => {
+      setIsRecording(false);
+      setIsTranscribing(false);
+      setInterimTranscript('');
+    };
+
+    recognition.onerror = () => {
+      setIsRecording(false);
+      setIsTranscribing(false);
+      setInterimTranscript('');
+    };
+
+    recognition.start();
+  };
+
+  const startMeetingRecording = () => {
+    const SpeechRecognitionAPI = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognitionAPI) { alert('Voice recognition not supported. Try Chrome or Edge.'); return; }
+    meetingTranscriptRef.current = '';
+    setMeetingTranscript('');
+    setMeetingSummary('');
+    setMeetingDuration(0);
+    setMeetingState('recording');
+    setRightTab('meetings');
+
+    const recognition: SpeechRecognition = new SpeechRecognitionAPI();
+    recognition.lang = 'it-IT';
+    recognition.continuous = true;
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+    meetingRecognitionRef.current = recognition;
+
+    recognition.onresult = (event: SpeechRecognitionEvent) => {
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        if (event.results[i].isFinal) {
+          const text = event.results[i][0].transcript.trim();
+          meetingTranscriptRef.current += (meetingTranscriptRef.current ? ' ' : '') + text;
+          setMeetingTranscript(meetingTranscriptRef.current);
+        }
+      }
+    };
+    recognition.onerror = () => {};
+    recognition.onend = () => {};
+    recognition.start();
+
+    meetingTimerRef.current = setInterval(() => {
+      setMeetingDuration(prev => prev + 1);
+    }, 1000);
+  };
+
+  const stopMeetingRecording = () => {
+    meetingRecognitionRef.current?.stop();
+    if (meetingTimerRef.current) clearInterval(meetingTimerRef.current);
+    setMeetingState('review');
+  };
+
+  const summarizeMeeting = async () => {
+    if (!meetingTranscriptRef.current) return;
+    setIsSummarizing(true);
+    try {
+      const summary = await (await import('../../services/gemini')).sendMessage(
+        `You are reviewing a doctor-patient consultation transcript to generate a clinical summary.
+
+IMPORTANT: First evaluate whether the transcript contains actual clinical content (symptoms, diagnoses, medications, clinical decisions, follow-up actions, or medical history).
+
+If the transcript does NOT contain enough clinical information — for example if it is too short, contains only greetings, or is unrelated to medicine — respond ONLY with this exact message (in the same language as the transcript):
+"⚠️ La trascrizione non contiene informazioni cliniche sufficienti per generare un riassunto utile. Registra una conversazione medica più dettagliata."
+
+If there IS sufficient clinical content, provide a structured summary with: key symptoms discussed, decisions made, medications mentioned, follow-up actions. Respond in the same language as the transcript.
+
+Transcript:
+${meetingTranscriptRef.current}`,
+        []
+      );
+      setMeetingSummary(summary);
+    } catch (e) { setMeetingSummary('Errore nella generazione del riassunto.'); }
+    setIsSummarizing(false);
+  };
+
+  const saveMeeting = () => {
+    if (!currentPatient || !meetingTranscriptRef.current) return;
+    const now = new Date();
+    setSavedMeetings(prev => [{
+      id: Date.now(),
+      patientId: currentPatient.id,
+      patientName: currentPatient.name,
+      date: now.toISOString().split('T')[0],
+      duration: meetingDuration,
+      transcript: meetingTranscriptRef.current,
+      summary: meetingSummary || undefined,
+    }, ...prev]);
+    setMeetingState('idle');
+    setRightTab('meetings');
+  };
+
+  const formatDuration = (s: number) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+
+  const confirmAppointment = () => {
+    if (!pendingAppointment || !selectedPatient) return;
+    const { date, time, notes } = pendingAppointment;
+    // Format date for display: "2026-05-15" → "May 15, 2026"
+    const displayDate = (() => {
+      try { return new Date(date + 'T12:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }); }
+      catch { return date; }
+    })();
+    setPatients(prev => prev.map(p => p.id === selectedPatient ? {
+      ...p,
+      appointments: [...(p.appointments ?? []), {
+        date: displayDate, time, room: 'Room 108, OEC Lugano',
+        duration: '30 minutes', status: 'Confirmed', notes
+      }]
+    } : p));
+    setPendingAppointment(null);
+  };
+
+  const generateRandomPrompt = () => {
+    const prompts = getTestPrompts(currentPatient?.name ?? 'the patient');
+    const prompt = prompts[Math.floor(Math.random() * prompts.length)];
+    setChatInput(prompt);
+  };
+
+  const handleSendMessage = async (overrideMessage?: string) => {
+    const hasFiles = !overrideMessage && uploadedAIFiles.length > 0;
+    if (!overrideMessage && !chatInput.trim() && !hasFiles) return;
+    if (isAIThinking) return;
+
+    // Stop any active voice recording before sending
+    if (isRecording) {
+      recognitionRef.current?.stop();
+      setIsRecording(false);
+      setInterimTranscript('');
+    }
+
+    // Handle file send: show files in chat, run processing, then trigger rename
+    if (hasFiles) {
+      const filesToProcess = [...uploadedAIFiles];
+      const fileLabel = filesToProcess.map(f => `📎 ${f}`).join('\n');
+      setChatMessages(prev => [
+        ...prev,
+        { role: 'user', content: chatInput.trim() ? `${chatInput.trim()}\n${fileLabel}` : fileLabel }
+      ]);
+      setActiveConvTab('current');
+      setChatInput('');
+      setUploadedAIFiles([]);
+
+      // Run AI processing for all patients when files are sent
+      await processDocumentsWithAI(filesToProcess);
+
+      // After processing, go straight to Smart Renaming panel
+      setTimeout(() => generateDocRenameSuggestions(), 500);
+      return;
+    }
+
+    const userMessage = overrideMessage ?? chatInput;
+
+    // If viewing a past conversation, load its messages and continue from there
+    if (typeof activeConvTab === 'number' && selectedPatient && pastConversations[selectedPatient]?.[activeConvTab]) {
+      const pastMsgs = pastConversations[selectedPatient][activeConvTab].messages;
+      setChatMessages([...pastMsgs, { role: 'user', content: userMessage }]);
+      // Remove from past conversations since it becomes the active one
+      setPastConversations(prev => ({
+        ...prev,
+        [selectedPatient]: prev[selectedPatient].filter((_, i) => i !== activeConvTab)
+      }));
+    } else {
+      setChatMessages(prev => [...prev, { role: 'user', content: userMessage }]);
+    }
+
+    setActiveConvTab('current');
+    if (!overrideMessage) setChatInput('');
+
+    // Detect rename-via-chat commands: "rinomina ... chiamalo/in ..." / "rename ... to ..."
+    const renameMatch =
+      userMessage.match(/rinomina\s+(?:il\s+)?(?:file\s+)?(.+?)\s+(?:e\s+)?chiamalo\s+(.+)/i) ||
+      userMessage.match(/rinomina\s+(?:il\s+)?(?:file\s+)?(.+?)\s+in\s+(.+)/i) ||
+      userMessage.match(/rename\s+(?:the\s+)?(?:file\s+)?(.+?)\s+(?:and\s+)?call\s+it\s+(.+)/i) ||
+      userMessage.match(/rename\s+(.+?)\s+to\s+(.+)/i);
+
+    if (renameMatch) {
+      const keyword = renameMatch[1].trim().toLowerCase();
+      const newName = renameMatch[2].trim();
+      const allDocs = [...documents, ...extraDocuments];
+
+      // Search in rename panel suggestions first, then all docs
+      const panelMatch = docRenameSuggestions.find(s =>
+        s.original.toLowerCase().includes(keyword) || s.suggested.toLowerCase().includes(keyword)
+      );
+
+      if (panelMatch) {
+        const ext = panelMatch.suggested.split('.').pop() || '';
+        const finalName = newName.includes('.') ? newName : `${newName}.${ext}`;
+        setDocRenameSuggestions(prev => prev.map(s =>
+          s.id === panelMatch.id ? { ...s, suggested: finalName } : s
+        ));
+        setChatMessages(prev => [...prev, {
+          role: 'assistant',
+          content: `Il suggerimento per **${panelMatch.original}** è stato aggiornato in **${finalName}**. Accettalo nel pannello per applicare la modifica.`
+        }]);
+        return;
+      }
+
+      const docMatch = allDocs.find(d =>
+        (docNameOverrides[d.id] ?? d.name).toLowerCase().includes(keyword)
+      );
+
+      if (docMatch) {
+        setDocNameOverrides(prev => ({ ...prev, [docMatch.id]: newName }));
+        setChatMessages(prev => [...prev, {
+          role: 'assistant',
+          content: `Il documento è stato rinominato in **${newName}**.`
+        }]);
+        return;
+      }
+    }
+
     setIsAIThinking(true);
 
     try {
       const patientContext = currentPatient
         ? buildPatientContext({
             name: currentPatient.name,
+            dob: `${patientDobDay} ${patientDobMonth} ${patientDobYear}`,
+            sex: patientSex,
+            avs: patientAVS,
+            nationality: patientNationality,
+            phone: `${patientPhonePrefix} ${patientPhoneNumber}`,
+            email: patientEmail,
+            address: patientAddress,
+            emergencyContact,
+            insurance: insuranceInfo,
             allergies,
             symptoms,
             medications,
             condition: currentCondition,
             labResults,
-            medicalHistory
+            medicalHistory,
+            timeline,
+            careTeam
           })
         : undefined;
 
-      const response = await sendMessage(userMessage, chatMessages, patientContext);
-      setChatMessages(prev => [...prev, { role: 'assistant', content: response }]);
+      const historyForAI = chatMessages.filter(m => m.role === 'user' || m.role === 'assistant') as Array<{role: 'user' | 'assistant', content: string}>;
+      const response = await sendMessage(userMessage, historyForAI, patientContext);
+
+      // Detect APPT tag and strip it from displayed message
+      const apptMatch = response.match(/APPT:\{([^}]+)\}/);
+      const cleanResponse = response.replace(/\nAPPT:\{[^}]+\}/g, '').trim();
+      let parsedAppt: {date: string; time: string; notes: string} | null = null;
+      if (apptMatch) {
+        try { parsedAppt = JSON.parse(`{${apptMatch[1]}}`); } catch {}
+      }
+
+      setChatMessages(prev => {
+        const updated = [...prev, { role: 'assistant' as const, content: cleanResponse }];
+        if (parsedAppt) {
+          updated.push({ role: 'appointment-confirm' as const, content: '', appointmentData: parsedAppt });
+        }
+        // After AI responds, check if it mentions any error medication — if so inject a suggestion card
+        const errorMeds = medications.filter(m => m.hasError && (m as any).suggestedName);
+        const responseLower = response.toLowerCase();
+        const mentionedMed = errorMeds.find(m =>
+          responseLower.includes(m.name.toLowerCase()) ||
+          responseLower.includes(m.originalName.toLowerCase())
+        );
+        if (mentionedMed && (mentionedMed as any).suggestedName) {
+          updated.push({
+            role: 'suggestion',
+            content: '',
+            medId: mentionedMed.id,
+            originalName: mentionedMed.name,
+            suggestedName: (mentionedMed as any).suggestedName
+          });
+        }
+        return updated;
+      });
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Unknown error';
       setChatMessages(prev => [
@@ -1021,7 +1473,7 @@ export default function DoctorDashboard({ onBackToSelector, onSwitchToPatient }:
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="h-screen overflow-hidden flex flex-col bg-gray-50">
       {/* Header */}
       <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
         <div className="px-4 sm:px-6 lg:px-8 py-4">
@@ -1069,11 +1521,11 @@ export default function DoctorDashboard({ onBackToSelector, onSwitchToPatient }:
       </header>
 
       {/* Main Content */}
-      <main className="px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
-        <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 lg:gap-6">
+      <main className="flex-1 overflow-hidden px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
+        <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 lg:gap-6 h-full">
           {/* Left Section - Patient List */}
-          <div className="xl:col-span-3">
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 sticky top-24">
+          <div className="xl:col-span-3 h-full overflow-hidden">
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 h-full flex flex-col">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-semibold text-gray-900">Patients</h2>
                 <button
@@ -1099,7 +1551,7 @@ export default function DoctorDashboard({ onBackToSelector, onSwitchToPatient }:
               </div>
 
               {/* Patient List */}
-              <div className="space-y-3 max-h-[600px] overflow-y-auto">
+              <div className="space-y-3 flex-1 overflow-y-auto">
                 {patients
                   .filter(patient =>
                     patient.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -1160,7 +1612,7 @@ export default function DoctorDashboard({ onBackToSelector, onSwitchToPatient }:
           </div>
 
           {/* Center Section - Patient Details with Tabs */}
-          <div className="xl:col-span-5 space-y-6">
+          <div className="xl:col-span-5 h-full overflow-y-auto space-y-6 pr-1">
             {currentPatient ? (
               <>
                 {/* Patient Header */}
@@ -1231,12 +1683,6 @@ export default function DoctorDashboard({ onBackToSelector, onSwitchToPatient }:
                                 <>
                                   <button
                                     onClick={() => handleSaveSection('patient-id')}
-                                    className="p-2 hover:bg-green-100 rounded-lg transition-colors"
-                                  >
-                                    <Check className="w-5 h-5 text-green-600" />
-                                  </button>
-                                  <button
-                                    onClick={handleCancelSection}
                                     className="p-2 hover:bg-red-100 rounded-lg transition-colors"
                                   >
                                     <XIcon className="w-5 h-5 text-red-600" />
@@ -1571,10 +2017,7 @@ export default function DoctorDashboard({ onBackToSelector, onSwitchToPatient }:
                               <div className="flex items-center gap-2">
                                 {editingSection === 'allergies' ? (
                                   <>
-                                    <button onClick={() => handleSaveSection('allergies')} className="p-2 hover:bg-green-100 rounded-lg">
-                                      <Check className="w-5 h-5 text-green-600" />
-                                    </button>
-                                    <button onClick={handleCancelSection} className="p-2 hover:bg-red-100 rounded-lg">
+                                    <button onClick={() => handleSaveSection('allergies')} className="p-2 hover:bg-red-100 rounded-lg">
                                       <XIcon className="w-5 h-5 text-red-600" />
                                     </button>
                                   </>
@@ -1633,10 +2076,7 @@ export default function DoctorDashboard({ onBackToSelector, onSwitchToPatient }:
                               <div className="flex items-center gap-2">
                                 {editingSection === 'symptoms' ? (
                                   <>
-                                    <button onClick={() => handleSaveSection('symptoms')} className="p-2 hover:bg-green-100 rounded-lg">
-                                      <Check className="w-5 h-5 text-green-600" />
-                                    </button>
-                                    <button onClick={handleCancelSection} className="p-2 hover:bg-red-100 rounded-lg">
+                                    <button onClick={() => handleSaveSection('symptoms')} className="p-2 hover:bg-red-100 rounded-lg">
                                       <XIcon className="w-5 h-5 text-red-600" />
                                     </button>
                                   </>
@@ -1731,10 +2171,7 @@ export default function DoctorDashboard({ onBackToSelector, onSwitchToPatient }:
                                   <Plus className="w-4 h-4" />
                                   Add
                                 </button>
-                                <button onClick={() => handleSaveSection('medications')} className="p-2 hover:bg-green-100 rounded-lg">
-                                  <Check className="w-5 h-5 text-green-600" />
-                                </button>
-                                <button onClick={handleCancelSection} className="p-2 hover:bg-red-100 rounded-lg">
+                                <button onClick={() => handleSaveSection('medications')} className="p-2 hover:bg-red-100 rounded-lg">
                                   <XIcon className="w-5 h-5 text-red-600" />
                                 </button>
                               </>
@@ -1803,6 +2240,15 @@ export default function DoctorDashboard({ onBackToSelector, onSwitchToPatient }:
                                       />
                                     </div>
                                   </div>
+                                  {(med.hasError || !med.confirmed) && (
+                                    <button
+                                      onClick={() => setMedications(prev => prev.map(m => m.id === med.id ? { ...m, confirmed: true, hasError: false } : m))}
+                                      className="w-full mt-1 flex items-center justify-center gap-2 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors"
+                                    >
+                                      <Check className="w-4 h-4" />
+                                      Confirm & save medication
+                                    </button>
+                                  )}
                                 </div>
                               ) : (
                                 <div className="space-y-2">
@@ -1810,17 +2256,29 @@ export default function DoctorDashboard({ onBackToSelector, onSwitchToPatient }:
                                     {med.name} / {med.dose}
                                   </p>
                                   <p className="text-xs text-gray-600">{med.originalName}</p>
-                                  <div className="flex items-center gap-2 mt-2">
-                                    {med.confirmed ? (
-                                      <>
-                                        <CheckCircle className="w-4 h-4 text-green-600" />
-                                        <span className="text-xs text-green-700 font-medium">✓ CH equivalent confirmed</span>
-                                      </>
-                                    ) : (
-                                      <>
-                                        <AlertCircle className="w-4 h-4 text-red-600" />
-                                        <span className="text-xs text-red-700 font-medium">No Swiss equivalent found</span>
-                                      </>
+                                  <div className="flex items-center justify-between mt-2">
+                                    <div className="flex items-center gap-2">
+                                      {med.confirmed ? (
+                                        <>
+                                          <CheckCircle className="w-4 h-4 text-green-600" />
+                                          <span className="text-xs text-green-700 font-medium">✓ CH equivalent confirmed</span>
+                                        </>
+                                      ) : (
+                                        <>
+                                          <AlertCircle className="w-4 h-4 text-red-600" />
+                                          <span className="text-xs text-red-700 font-medium">No Swiss equivalent found</span>
+                                        </>
+                                      )}
+                                    </div>
+                                    {med.hasError && (med as any).suggestedName && (
+                                      <button
+                                        onClick={() => acceptMedSubstitution(med.id, (med as any).suggestedName)}
+                                        className="flex items-center gap-1 px-2 py-1 bg-green-100 hover:bg-green-200 text-green-700 text-xs font-medium rounded-lg transition-colors"
+                                        title={`Accept substitution: ${(med as any).suggestedName}`}
+                                      >
+                                        <Check className="w-3 h-3" />
+                                        {(med as any).suggestedName}
+                                      </button>
                                     )}
                                   </div>
                                 </div>
@@ -1846,15 +2304,15 @@ export default function DoctorDashboard({ onBackToSelector, onSwitchToPatient }:
                         <div>
                           <h3 className="font-semibold text-gray-900 mb-3">Documents</h3>
                           <div className="space-y-2">
-                            {documents.length > 0 ? (
-                              documents.map((doc) => (
+                            {[...documents, ...extraDocuments].length > 0 ? (
+                              [...documents, ...extraDocuments].map((doc) => (
                                 <div key={doc.id} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:border-blue-300">
                                   <div className="flex items-center gap-3">
                                     <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center">
                                       <FileText className="w-5 h-5 text-blue-600" />
                                     </div>
                                     <div>
-                                      <p className="font-medium text-sm text-gray-900">{doc.name}</p>
+                                      <p className="font-medium text-sm text-gray-900">{docNameOverrides[doc.id] ?? doc.name}</p>
                                       <div className="flex items-center gap-3 mt-1">
                                         <span className="text-xs text-gray-500">{doc.type}</span>
                                         <span className="text-xs text-gray-400">•</span>
@@ -1888,16 +2346,6 @@ export default function DoctorDashboard({ onBackToSelector, onSwitchToPatient }:
                         <div className="border border-gray-200 rounded-xl overflow-hidden">
                           <div className="px-4 py-3 bg-gray-50 flex items-center justify-between">
                             <h3 className="font-semibold text-gray-900">Care Team & Collaboration</h3>
-                            {documents.length > 0 && careTeam.length > 0 && (
-                              <button
-                                className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-lg hover:bg-blue-50 transition-colors"
-                                style={{ color: '#3D38F5' }}
-                                title="Share documents with care team"
-                              >
-                                <Upload className="w-4 h-4" />
-                                <span>Share Documents</span>
-                              </button>
-                            )}
                           </div>
 
                           {careTeam.length > 0 ? (
@@ -2048,33 +2496,48 @@ export default function DoctorDashboard({ onBackToSelector, onSwitchToPatient }:
           </div>
 
           {/* Right Section - Tabbed Panel */}
-          <div className="xl:col-span-4">
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 sticky top-24 max-h-[calc(100vh-120px)] flex flex-col">
+          <div className="xl:col-span-4 h-full overflow-hidden">
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 h-full flex flex-col">
               {/* Tab Navigation */}
               <div className="flex border-b border-gray-200">
                 <button
                   onClick={() => setRightTab('documents')}
-                  className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
+                  className={`flex-1 px-3 py-3 text-sm font-medium transition-colors ${
                     rightTab === 'documents'
                       ? 'text-[#3D38F5] border-b-2 border-[#3D38F5]'
                       : 'text-gray-500 hover:text-gray-700'
                   }`}
                 >
-                  AI Document Helper
+                  AI Chat
+                </button>
+                <button
+                  onClick={() => setRightTab('meetings')}
+                  className={`flex-1 px-3 py-3 text-sm font-medium transition-colors relative ${
+                    rightTab === 'meetings'
+                      ? 'text-[#3D38F5] border-b-2 border-[#3D38F5]'
+                      : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  Meetings
+                  {savedMeetings.length > 0 && (
+                    <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 rounded-full bg-indigo-100 text-[10px] font-bold text-indigo-700">
+                      {savedMeetings.length}
+                    </span>
+                  )}
                 </button>
                 <button
                   onClick={() => setRightTab('appointment')}
-                  className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
+                  className={`flex-1 px-3 py-3 text-sm font-medium transition-colors ${
                     rightTab === 'appointment'
                       ? 'text-[#3D38F5] border-b-2 border-[#3D38F5]'
                       : 'text-gray-500 hover:text-gray-700'
                   }`}
                 >
-                  Upcoming Appointment
+                  Appointment
                 </button>
               </div>
 
-              <div className="flex-1 overflow-y-auto p-6">
+              <div ref={chatScrollRef} className="flex-1 overflow-y-auto p-6">
                 {/* Upcoming Appointment Tab */}
                 {rightTab === 'appointment' && (
                   <div className="space-y-4">
@@ -2085,43 +2548,43 @@ export default function DoctorDashboard({ onBackToSelector, onSwitchToPatient }:
                             <Calendar className="w-5 h-5 text-white" />
                           </div>
                           <div>
-                            <h3 className="font-semibold text-gray-900">Next Appointment</h3>
-                            <p className="text-xs text-gray-500">Scheduled consultation</p>
+                            <h3 className="font-semibold text-gray-900">Upcoming Appointments</h3>
+                            <p className="text-xs text-gray-500">{(currentPatient as any).appointments?.length ?? 1} scheduled</p>
                           </div>
                         </div>
 
-                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                          <div className="flex items-start justify-between mb-3">
-                            <div>
-                              <p className="text-sm font-semibold text-gray-900">{currentPatient.name}</p>
-                              <p className="text-xs text-gray-600 mt-1">{currentPatient.condition}</p>
+                        {((currentPatient as any).appointments ?? []).map((appt: { date: string; time: string; room: string; duration: string; status: string; notes: string }, idx: number) => (
+                          <div key={idx} className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                            <div className="flex items-start justify-between mb-3">
+                              <div>
+                                <p className="text-sm font-semibold text-gray-900">{currentPatient.name}</p>
+                              </div>
+                              <span className={`px-2 py-1 text-xs font-medium rounded ${appt.status === 'Confirmed' ? 'bg-blue-100 text-blue-800' : 'bg-yellow-100 text-yellow-800'}`}>
+                                {appt.status}
+                              </span>
                             </div>
-                            <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs font-medium rounded">
-                              Confirmed
-                            </span>
-                          </div>
 
-                          <div className="space-y-2 mt-4">
-                            <div className="flex items-center gap-2 text-sm">
-                              <Calendar className="w-4 h-4 text-gray-500" />
-                              <span className="text-gray-900">May 5, 2026 at 10:30 AM</span>
+                            <div className="space-y-2 mt-2">
+                              <div className="flex items-center gap-2 text-sm">
+                                <Calendar className="w-4 h-4 text-gray-500" />
+                                <span className="text-gray-900">{appt.date} at {appt.time}</span>
+                              </div>
+                              <div className="flex items-center gap-2 text-sm">
+                                <Clock className="w-4 h-4 text-gray-500" />
+                                <span className="text-gray-900">Duration: {appt.duration}</span>
+                              </div>
+                              <div className="flex items-center gap-2 text-sm">
+                                <MapPin className="w-4 h-4 text-gray-500" />
+                                <span className="text-gray-900">{appt.room}</span>
+                              </div>
                             </div>
-                            <div className="flex items-center gap-2 text-sm">
-                              <Clock className="w-4 h-4 text-gray-500" />
-                              <span className="text-gray-900">Duration: 30 minutes</span>
-                            </div>
-                            <div className="flex items-center gap-2 text-sm">
-                              <MapPin className="w-4 h-4 text-gray-500" />
-                              <span className="text-gray-900">Room 204, OEC Lugano</span>
+
+                            <div className="mt-4 pt-4 border-t border-blue-200">
+                              <p className="text-xs font-semibold text-gray-700 mb-2">Appointment Notes</p>
+                              <p className="text-xs text-gray-600">{appt.notes}</p>
                             </div>
                           </div>
-
-                          <div className="mt-4 pt-4 border-t border-blue-200">
-                            <p className="text-xs font-semibold text-gray-700 mb-2">Appointment Notes</p>
-                            <p className="text-xs text-gray-600">Follow-up consultation for medication review and health status assessment.</p>
-                          </div>
-                        </div>
-
+                        ))}
                       </>
                     ) : (
                       <div className="text-center py-12">
@@ -2137,123 +2600,202 @@ export default function DoctorDashboard({ onBackToSelector, onSwitchToPatient }:
                 {rightTab === 'documents' && (
                   <div className="space-y-4">
                     <div className="flex items-center gap-3 mb-4">
-                      <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ backgroundColor: '#3D38F5' }}>
+                      <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: '#3D38F5' }}>
                         <Bot className="w-5 h-5 text-white" />
                       </div>
-                      <div>
+                      <div className="flex-1 min-w-0">
                         <h3 className="font-semibold text-gray-900">AI Document Helper</h3>
                         <p className="text-xs text-gray-500">Upload and organize patient documents</p>
                       </div>
+                      {currentPatient && (
+                        <span className="text-xs text-gray-400 flex-shrink-0">{currentPatient.name}</span>
+                      )}
                     </div>
 
-                    {/* Uploaded Files - show when files exist and not processing */}
-                    {uploadedAIFiles.length > 0 && !isAIProcessing && aiProcessingSteps.length === 0 && (
+                    {/* Past Conversations — visible only when chat is completely idle */}
+                    {activeConvTab === 'current' &&
+                     chatMessages.length === 0 &&
+                     uploadedAIFiles.length === 0 &&
+                     !chatInput.trim() &&
+                     aiProcessingSteps.length === 0 &&
+                     selectedPatient && pastConversations[selectedPatient]?.length > 0 && (
                       <div className="space-y-2">
-                        <h4 className="text-sm font-semibold text-gray-700">Uploaded Files</h4>
-                        {uploadedAIFiles.map((file, index) => (
-                          <div key={index} className="flex items-center justify-between p-3 bg-green-50 border border-green-200 rounded-lg">
-                            <div className="flex items-center gap-2">
-                              <FileText className="w-4 h-4 text-green-600" />
-                              <span className="text-sm text-gray-900">{file}</span>
+                        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Past conversations</p>
+                        {pastConversations[selectedPatient].map((conv, idx) => (
+                          <button
+                            key={idx}
+                            onClick={() => setActiveConvTab(idx)}
+                            className="w-full text-left flex items-center gap-3 p-3 bg-gray-50 border border-gray-200 rounded-xl hover:border-gray-300 hover:bg-gray-100 transition-colors"
+                          >
+                            <Clock className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm font-medium text-gray-800 truncate">{conv.summary}</p>
+                              <p className="text-xs text-gray-400">{conv.date}</p>
                             </div>
+                            <svg className="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                            </svg>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* VIEW: past conversation detail */}
+                    {typeof activeConvTab === 'number' && selectedPatient && pastConversations[selectedPatient]?.[activeConvTab] && (() => {
+                      const conv = pastConversations[selectedPatient][activeConvTab as number];
+                      return (
+                        <div className="space-y-4">
+                          <div className="flex items-center justify-between">
                             <button
-                              onClick={() => {
-                                setUploadedAIFiles(prev => prev.filter((_, i) => i !== index));
-                              }}
-                              className="text-red-600 hover:text-red-700"
+                              onClick={() => setActiveConvTab('current')}
+                              className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 transition-colors"
                             >
-                              <XIcon className="w-4 h-4" />
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                              </svg>
+                              Back
                             </button>
                           </div>
-                        ))}
-                      </div>
-                    )}
-
-                    {/* AI Processing Steps - Always visible when steps exist */}
-                    {aiProcessingSteps.length > 0 && (
-                      <div className={`border rounded-xl p-4 ${isAIProcessing ? 'bg-blue-50 border-blue-200' : 'bg-gray-50 border-gray-200'}`}>
-                        <div className="flex items-start gap-2 mb-3">
-                          <div className="w-8 h-8 rounded-full flex items-center justify-center" style={{ backgroundColor: '#3D38F5' }}>
-                            <Bot className="w-5 h-5 text-white" />
-                          </div>
-                          <div className="flex-1">
-                            <p className="text-sm font-bold text-gray-900">
-                              {isAIProcessing ? 'AI Document Processing' : 'AI Processing Complete'}
-                            </p>
-                            <p className={`text-xs ${isAIProcessing ? 'text-blue-600' : 'text-green-600'}`}>
-                              {isAIProcessing ? 'Analyzing medical records...' : 'Patient profile successfully updated'}
-                            </p>
-                          </div>
-                        </div>
-
-                        {!isAIProcessing && uploadedAIFiles.length > 0 && (
-                          <div className="mb-3 space-y-1">
-                            <p className="text-xs font-semibold text-gray-600">Documents Processed:</p>
-                            {uploadedAIFiles.map((file, index) => (
-                              <div key={index} className="flex items-center gap-2 pl-2">
-                                <FileText className="w-3 h-3 text-gray-500" />
-                                <span className="text-xs text-gray-700">{file}</span>
+                          <p className="text-xs text-gray-400">{conv.date} · {conv.summary}</p>
+                          {conv.messages.map((message, index) => (
+                            <div key={index} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                              {message.role === 'assistant' && (
+                                <div className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 mr-2 mt-1" style={{ backgroundColor: '#3D38F5' }}>
+                                  <Bot className="w-4 h-4 text-white" />
+                                </div>
+                              )}
+                              <div className={`max-w-[85%] rounded-lg p-3 ${message.role === 'user' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-900'}`}>
+                                <p className="text-sm whitespace-pre-line" dangerouslySetInnerHTML={{ __html: renderMd(message.content) }} />
                               </div>
-                            ))}
-                          </div>
-                        )}
-
-                        <div className="space-y-2">
-                          {aiProcessingSteps.map((step, index) => (
-                            <div key={index} className="flex items-start gap-2">
-                              <CheckCircle className="w-4 h-4 text-green-600 flex-shrink-0 mt-0.5" />
-                              <p className="text-sm text-gray-700">{step}</p>
                             </div>
                           ))}
-                          {isAIProcessing && aiProcessingSteps.length < 7 && (
-                            <div className="flex items-center gap-2">
-                              <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-                              <p className="text-sm text-gray-500 italic">Processing...</p>
-                            </div>
-                          )}
                         </div>
+                      );
+                    })()}
 
-                        {!isAIProcessing && (
-                          <div className="mt-3 pt-3 border-t border-gray-200">
-                            <div className="flex items-start gap-2 p-2 bg-yellow-50 border border-yellow-200 rounded-lg">
-                              <AlertCircle className="w-4 h-4 text-yellow-700 flex-shrink-0 mt-0.5" />
-                              <p className="text-xs text-yellow-800">
-                                <span className="font-semibold">Action Required:</span> 1 medication requires manual verification. Please review the Medications tab.
-                              </p>
-                            </div>
+                    {/* VIEW: current/new conversation */}
+                    {activeConvTab === 'current' && (
+                      <div className="space-y-4">
+                        {chatMessages.length === 0 && aiProcessingSteps.length === 0 && (
+                          <div className="text-center py-12">
+                            <Bot className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                            <p className="text-sm text-gray-500">Upload patient documents to get started</p>
+                            <p className="text-xs text-gray-400 mt-1">AI will analyze and organize the files automatically</p>
                           </div>
                         )}
-                      </div>
-                    )}
-
-                    {/* Chat Messages */}
-                    {chatMessages.length > 0 && (
-                      <div className="space-y-4">
-                        <h4 className="text-sm font-semibold text-gray-700">AI Conversation</h4>
                         {chatMessages.map((message, index) => (
                           <div key={index} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                            {message.role === 'assistant' && (
-                              <div className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 mr-2 mt-1" style={{ backgroundColor: '#3D38F5' }}>
-                                <Bot className="w-4 h-4 text-white" />
+                            {message.role === 'suggestion' ? (
+                              <div className="w-full bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-center justify-between gap-3">
+                                <div className="flex items-start gap-2">
+                                  <Pill className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                                  <div>
+                                    <p className="text-xs font-semibold text-amber-800">Suggested substitute</p>
+                                    <p className="text-xs text-gray-600 mt-0.5">
+                                      <span className="line-through text-red-400">{message.originalName}</span>
+                                      {' → '}
+                                      <span className="font-medium text-green-700">{message.suggestedName}</span>
+                                    </p>
+                                  </div>
+                                </div>
+                                <button
+                                  onClick={() => acceptMedSubstitution(message.medId!, message.suggestedName!)}
+                                  className="flex items-center gap-1 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-medium rounded-lg transition-colors flex-shrink-0"
+                                >
+                                  <Check className="w-3 h-3" />
+                                  Accept
+                                </button>
                               </div>
+                            ) : message.role === 'appointment-confirm' && message.appointmentData ? (
+                              <div className="w-full bg-indigo-50 border border-indigo-200 rounded-xl p-4 space-y-3">
+                                <div className="flex items-center gap-2">
+                                  <Calendar className="w-4 h-4 text-indigo-600" />
+                                  <p className="text-sm font-semibold text-indigo-800">Confirm appointment</p>
+                                </div>
+                                <div className="space-y-1.5 text-sm text-gray-700">
+                                  <div className="flex items-center gap-2">
+                                    <Clock className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                                    <span>{message.appointmentData.date} · {message.appointmentData.time}</span>
+                                  </div>
+                                  <div className="flex items-start gap-2">
+                                    <FileText className="w-3.5 h-3.5 text-gray-400 flex-shrink-0 mt-0.5" />
+                                    <span className="text-xs text-gray-600">{message.appointmentData.notes}</span>
+                                  </div>
+                                </div>
+                                <div className="flex gap-2">
+                                  <button
+                                    onClick={() => {
+                                      if (!selectedPatient) return;
+                                      const appt = message.appointmentData!;
+                                      const displayDate = (() => { try { return new Date(appt.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }); } catch { return appt.date; } })();
+                                      setPatients(prev => prev.map(p => p.id === selectedPatient ? { ...p, appointments: [...(p.appointments ?? []), { date: displayDate, time: appt.time, room: 'Room 108, OEC Lugano', duration: '30 minutes', status: 'Confirmed', notes: appt.notes }] } : p));
+                                      setChatMessages(prev => prev.map((m, i) => i === index ? { ...m, role: 'assistant' as const, content: `✓ Appointment added: ${displayDate} at ${appt.time}.`, appointmentData: undefined } : m));
+                                    }}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-white text-xs font-medium"
+                                    style={{ backgroundColor: '#3D38F5' }}
+                                  >
+                                    <Check className="w-3.5 h-3.5" /> Add to Calendar
+                                  </button>
+                                  <button
+                                    onClick={() => setChatMessages(prev => prev.filter((_, i) => i !== index))}
+                                    className="px-3 py-1.5 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50 text-xs"
+                                  >
+                                    Dismiss
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <>
+                                {message.role === 'assistant' && (
+                                  <div className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 mr-2 mt-1" style={{ backgroundColor: '#3D38F5' }}>
+                                    <Bot className="w-4 h-4 text-white" />
+                                  </div>
+                                )}
+                                <div className={`max-w-[85%] rounded-lg p-3 ${message.role === 'user' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-900'}`}>
+                                  <p className="text-sm whitespace-pre-line" dangerouslySetInnerHTML={{ __html: renderMd(message.content) }} />
+                                </div>
+                              </>
                             )}
-                            <div className={`max-w-[85%] rounded-lg p-3 ${
-                              message.role === 'user'
-                                ? 'bg-blue-600 text-white'
-                                : 'bg-gray-100 text-gray-900'
-                            }`}>
-                              <p
-                                className="text-sm whitespace-pre-line"
-                                dangerouslySetInnerHTML={{
-                                  __html: message.content
-                                    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-                                    .replace(/\n/g, '<br />')
-                                }}
-                              />
-                            </div>
                           </div>
                         ))}
-                        {/* AI thinking indicator */}
+                        {/* AI Processing steps — after messages so autoscroll shows them */}
+                        {aiProcessingSteps.length > 0 && (
+                          <div className={`border rounded-xl p-4 ${isAIProcessing ? 'bg-blue-50 border-blue-200' : 'bg-gray-50 border-gray-200'}`}>
+                            <div className="flex items-start gap-2 mb-3">
+                              <div className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: '#3D38F5' }}>
+                                <Bot className="w-4 h-4 text-white" />
+                              </div>
+                              <div className="flex-1">
+                                <p className="text-sm font-semibold text-gray-900">
+                                  {isAIProcessing ? 'Analyzing documents...' : 'Analysis complete'}
+                                </p>
+                                <p className={`text-xs ${isAIProcessing ? 'text-blue-600' : 'text-green-600'}`}>
+                                  {isAIProcessing ? 'Please wait' : 'Patient profile updated'}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="space-y-1.5">
+                              {aiProcessingSteps.map((step, index) => (
+                                <div key={index} className="flex items-center gap-2">
+                                  <CheckCircle className="w-3.5 h-3.5 text-green-600 flex-shrink-0" />
+                                  <p className="text-xs text-gray-700">{step}</p>
+                                </div>
+                              ))}
+                              {isAIProcessing && (
+                                <div className="flex items-center gap-2">
+                                  <div className="w-3.5 h-3.5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin flex-shrink-0"></div>
+                                  <p className="text-xs text-gray-500 italic">Processing...</p>
+                                </div>
+                              )}
+                            </div>
+                            {!isAIProcessing && (
+                              <div className="mt-3 pt-3 border-t border-gray-200 flex items-start gap-2">
+                                <AlertCircle className="w-3.5 h-3.5 text-yellow-600 flex-shrink-0 mt-0.5" />
+                                <p className="text-xs text-yellow-800">1 medication requires verification — check the Medications tab.</p>
+                              </div>
+                            )}
+                          </div>
+                        )}
                         {isAIThinking && (
                           <div className="flex justify-start">
                             <div className="w-7 h-7 rounded-full bg-indigo-100 flex items-center justify-center mr-2 flex-shrink-0">
@@ -2266,142 +2808,210 @@ export default function DoctorDashboard({ onBackToSelector, onSwitchToPatient }:
                             </div>
                           </div>
                         )}
-                        {/* Invisible element for autoscroll */}
                         <div ref={chatEndRef} />
                       </div>
                     )}
 
-                    {/* Welcome message when no documents or activity */}
-                    {uploadedAIFiles.length === 0 && aiProcessingSteps.length === 0 && chatMessages.length === 0 && (
-                      <div className="text-center py-12">
-                        <Bot className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                        <p className="text-sm text-gray-500">Upload patient documents to get started</p>
-                        <p className="text-xs text-gray-400 mt-1">AI will analyze and organize the files automatically</p>
-                      </div>
-                    )}
 
-                    {/* Rename Dialog */}
-                    {showRenameDialog && uploadedAIFiles.length > 0 && (
-                      <div className="bg-blue-50 border-2 border-blue-300 rounded-lg p-4">
-                        <div className="flex items-start gap-2 mb-3">
-                          <Sparkles className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
-                          <div className="flex-1">
-                            <p className="text-sm font-semibold text-gray-900">AI Suggestion</p>
-                            <p className="text-xs text-blue-700 mt-1">
-                              I noticed some uploaded files may not be properly named. Would you like me to help organize and rename them based on their content?
-                            </p>
+                    {/* Smart Renaming panel */}
+                    {docRenameSuggestions.length > 0 && (
+                      <div
+                        className="bg-gradient-to-br from-purple-50 via-blue-50 to-purple-50 border-2 border-purple-300 rounded-xl p-4 space-y-3 transition-all duration-300 ease-out"
+                        style={{ opacity: docRenamePanelVisible ? 1 : 0, transform: docRenamePanelVisible ? 'translateY(0)' : 'translateY(-8px)' }}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center">
+                              <Bot className="w-4 h-4 text-white" />
+                            </div>
+                            <div>
+                              <p className="text-sm font-semibold text-gray-900">Smart Renaming</p>
+                              <p className="text-xs text-gray-500">Click on a name to edit it manually</p>
+                            </div>
                           </div>
-                        </div>
-                        <div className="flex gap-2 mt-3">
-                          <button
-                            onClick={() => {
-                              setShowRenameDialog(false);
-
-                              // Generate rename suggestions for uploaded files
-                              const suggestions = uploadedAIFiles.map((fileName, idx) => {
-                                const lowerName = fileName.toLowerCase();
-                                let suggestedName = '';
-
-                                if (lowerName.includes('medical') || lowerName.includes('history') || lowerName.includes('report')) {
-                                  suggestedName = 'Medical History Report';
-                                } else if (lowerName.includes('blood') || lowerName.includes('lab') || lowerName.includes('test')) {
-                                  suggestedName = 'Blood Test Results';
-                                } else if (lowerName.includes('med') || lowerName.includes('prescription')) {
-                                  suggestedName = 'Current Medications List';
-                                } else if (lowerName.includes('insurance') || lowerName.includes('card')) {
-                                  suggestedName = 'Insurance Card';
-                                } else if (lowerName.includes('id') || lowerName.includes('passport')) {
-                                  suggestedName = 'ID/Passport Copy';
-                                } else {
-                                  suggestedName = `Document ${idx + 1}`;
-                                }
-
-                                const ext = fileName.split('.').pop();
-                                return `${idx + 1}. **${fileName}** → **${suggestedName}.${ext}**`;
-                              });
-
-                              setChatMessages(prev => [...prev, {
-                                role: 'assistant',
-                                content: 'I\'ve analyzed the uploaded documents. Here are my suggested file names:\n\n' +
-                                  suggestions.join('\n') +
-                                  '\n\nWould you like me to apply these changes?'
-                              }]);
-                            }}
-                            className="px-3 py-1.5 text-xs font-medium text-white rounded-lg hover:opacity-90"
-                            style={{ backgroundColor: '#3D38F5' }}
-                          >
-                            Yes, organize files
-                          </button>
-                          <button
-                            onClick={() => setShowRenameDialog(false)}
-                            className="px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
-                          >
-                            Not now
+                          <button onClick={() => { setDocRenameSuggestions([]); setDocRenamePanelVisible(false); }} className="text-gray-400 hover:text-gray-600">
+                            <XIcon className="w-4 h-4" />
                           </button>
                         </div>
-                      </div>
-                    )}
 
-                    {/* Past Conversations Section */}
-                    {selectedPatient && pastConversations[selectedPatient] && pastConversations[selectedPatient].length > 0 && (
-                      <div className="border-t border-gray-200 pt-4 mt-4">
-                        <button
-                          onClick={() => setShowPastConversations(!showPastConversations)}
-                          className="w-full flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
-                        >
-                          <div className="flex items-center gap-2">
-                            <Clock className="w-4 h-4 text-gray-600" />
-                            <span className="text-sm font-semibold text-gray-900">Past Conversations</span>
-                            <span className="px-2 py-0.5 bg-gray-200 text-gray-700 text-xs font-medium rounded-full">
-                              {pastConversations[selectedPatient].length}
-                            </span>
-                          </div>
-                          <div className={`transform transition-transform ${showPastConversations ? 'rotate-180' : ''}`}>
-                            <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                            </svg>
-                          </div>
-                        </button>
-
-                        {showPastConversations && (
-                          <div className="mt-3 space-y-3">
-                            {pastConversations[selectedPatient].map((conversation, idx) => (
-                              <div key={idx} className="border border-gray-200 rounded-lg overflow-hidden">
-                                <div className="bg-gray-50 px-3 py-2 border-b border-gray-200">
-                                  <div className="flex items-center justify-between">
-                                    <p className="text-xs font-semibold text-gray-900">{conversation.summary}</p>
-                                    <span className="text-xs text-gray-500">{conversation.date}</span>
-                                  </div>
+                        <div className="space-y-2">
+                          {docRenameSuggestions.map((s) => (
+                            <div key={s.id} className="bg-white rounded-xl p-3 border border-purple-200">
+                              <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-lg bg-purple-100 flex items-center justify-center flex-shrink-0">
+                                  <FileText className="w-5 h-5 text-purple-600" />
                                 </div>
-                                <div className="p-3 space-y-2 bg-white">
-                                  {conversation.messages.map((message, msgIdx) => (
-                                    <div key={msgIdx} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                                      {message.role === 'assistant' && (
-                                        <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 mr-2 mt-0.5" style={{ backgroundColor: '#3D38F5' }}>
-                                          <Bot className="w-3 h-3 text-white" />
-                                        </div>
-                                      )}
-                                      <div className={`max-w-[85%] rounded-lg p-2 ${
-                                        message.role === 'user'
-                                          ? 'bg-blue-600 text-white'
-                                          : 'bg-gray-100 text-gray-900'
-                                      }`}>
-                                        <p
-                                          className="text-xs whitespace-pre-line"
-                                          dangerouslySetInnerHTML={{
-                                            __html: message.content
-                                              .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-                                              .replace(/\n/g, '<br />')
-                                          }}
-                                        />
-                                      </div>
-                                    </div>
-                                  ))}
+                                <div className="flex items-center gap-1.5 flex-1 min-w-0 overflow-hidden">
+                                  <span className="text-sm text-gray-400 truncate shrink min-w-0 line-through">{s.original}</span>
+                                  <svg className="w-4 h-4 text-purple-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                                  </svg>
+                                  {editingRenameId === s.id ? (
+                                    <input
+                                      autoFocus
+                                      className="text-sm font-semibold text-purple-900 border-b border-purple-400 outline-none bg-transparent min-w-0 flex-1"
+                                      value={editingRenameValue}
+                                      onChange={e => setEditingRenameValue(e.target.value)}
+                                      onBlur={() => {
+                                        if (editingRenameValue.trim()) {
+                                          const ext = s.suggested.split('.').pop() || '';
+                                          const newName = editingRenameValue.includes('.') ? editingRenameValue : `${editingRenameValue}.${ext}`;
+                                          setDocRenameSuggestions(prev => prev.map(x => x.id === s.id ? { ...x, suggested: newName } : x));
+                                        }
+                                        setEditingRenameId(null);
+                                      }}
+                                      onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                                    />
+                                  ) : (
+                                    <span
+                                      className="text-sm font-semibold text-purple-900 truncate shrink min-w-0 cursor-text hover:underline"
+                                      title="Click to edit"
+                                      onClick={() => { setEditingRenameId(s.id); setEditingRenameValue(s.suggested.replace(/\.[^/.]+$/, '')); }}
+                                    >{s.suggested}</span>
+                                  )}
+                                </div>
+                                <button
+                                  onClick={() => applyDocRename(s.id)}
+                                  className="px-3 py-2 rounded-lg font-medium text-sm text-white bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 transition-all flex-shrink-0 h-10"
+                                >
+                                  Accept
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+
+                        {docRenameSuggestions.length > 1 && (
+                          <button
+                            onClick={applyAllDocRenames}
+                            className="w-full px-4 py-3 rounded-lg font-medium text-white bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 transition-all shadow-md text-sm"
+                          >
+                            Accept All Changes
+                          </button>
+                        )}
+                      </div>
+                    )}
+
+                  </div>
+                )}
+
+                {/* Meetings Tab */}
+                {rightTab === 'meetings' && (
+                  <div className="space-y-4">
+
+                    {/* Active recording UI */}
+                    {meetingState === 'recording' && (
+                      <div className="bg-red-50 border border-red-200 rounded-xl p-4 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse flex-shrink-0" />
+                            <span className="text-sm font-semibold text-red-700">Recording</span>
+                            <span className="text-sm font-mono text-red-600">{formatDuration(meetingDuration)}</span>
+                          </div>
+                          <button
+                            onClick={stopMeetingRecording}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-medium transition-colors"
+                          >
+                            Stop
+                          </button>
+                        </div>
+                        {currentPatient && (
+                          <p className="text-xs text-red-500">{currentPatient.name} · {new Date().toLocaleDateString('en-CH')}</p>
+                        )}
+                        <div className="bg-white border border-red-100 rounded-lg p-3 min-h-[60px] max-h-32 overflow-y-auto">
+                          {meetingTranscript
+                            ? <p className="text-sm text-gray-700 leading-relaxed">{meetingTranscript}</p>
+                            : <p className="text-xs text-gray-400 italic">Listening… speak to start transcribing</p>
+                          }
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Record button when idle */}
+                    {meetingState === 'idle' && (
+                      <button
+                        onClick={startMeetingRecording}
+                        disabled={!currentPatient}
+                        className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl border-2 border-dashed border-gray-300 text-gray-500 hover:border-red-300 hover:text-red-600 hover:bg-red-50 transition-all disabled:opacity-40 text-sm font-medium"
+                      >
+                        <Mic className="w-4 h-4" />
+                        Record new meeting
+                      </button>
+                    )}
+
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="font-semibold text-gray-900">Recorded Meetings</h3>
+                      {viewingMeeting !== null && (
+                        <div className="flex items-center gap-3">
+                          <button
+                            onClick={() => { setSavedMeetings(prev => prev.filter(x => x.id !== viewingMeeting)); setViewingMeeting(null); }}
+                            className="text-xs text-red-500 hover:underline flex items-center gap-1"
+                          >
+                            <Trash2 className="w-3 h-3" /> Delete
+                          </button>
+                          <button onClick={() => setViewingMeeting(null)} className="text-xs text-indigo-600 hover:underline">← Back</button>
+                        </div>
+                      )}
+                    </div>
+
+                    {viewingMeeting !== null ? (() => {
+                      const m = savedMeetings.find(x => x.id === viewingMeeting);
+                      if (!m) return null;
+                      return (
+                        <div className="space-y-4">
+                          <div className="flex items-center gap-2 text-xs text-gray-500">
+                            <span>{m.date}</span><span>·</span>
+                            <span>{formatDuration(m.duration)}</span><span>·</span>
+                            <span className="font-medium text-indigo-700">{m.patientName}</span>
+                          </div>
+                          {m.summary && (
+                            <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4">
+                              <p className="text-xs font-semibold text-indigo-700 mb-2">AI Summary</p>
+                              <p className="text-sm text-gray-700 whitespace-pre-wrap">{m.summary}</p>
+                            </div>
+                          )}
+                          <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 max-h-80 overflow-y-auto">
+                            <p className="text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wide">Full Transcript</p>
+                            <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{m.transcript || 'No transcript available.'}</p>
+                          </div>
+                        </div>
+                      );
+                    })() : savedMeetings.length === 0 ? (
+                      <div className="text-center py-16">
+                        <Mic className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                        <p className="text-sm text-gray-500">No recorded meetings yet</p>
+                        <p className="text-xs text-gray-400 mt-1">Press Record to start a new meeting</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {savedMeetings.map(m => (
+                          <div key={m.id} className="group relative p-4 bg-gray-50 border border-gray-200 rounded-xl hover:border-indigo-300 hover:bg-indigo-50 transition-colors">
+                            <button
+                              onClick={() => setViewingMeeting(m.id)}
+                              className="w-full text-left"
+                            >
+                              <div className="flex items-start gap-2">
+                                <div className="min-w-0 pr-6">
+                                  <p className="text-sm font-semibold text-gray-900 truncate">{m.patientName}</p>
+                                  <p className="text-xs text-gray-500 mt-0.5">{m.date} · {formatDuration(m.duration)}</p>
+                                  {m.summary && (
+                                    <p className="text-xs text-gray-600 mt-1.5 line-clamp-2">{m.summary}</p>
+                                  )}
+                                  {!m.summary && (
+                                    <p className="text-xs text-gray-400 mt-1.5 italic line-clamp-2">{m.transcript.slice(0, 100)}{m.transcript.length > 100 ? '…' : ''}</p>
+                                  )}
                                 </div>
                               </div>
-                            ))}
+                            </button>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setSavedMeetings(prev => prev.filter(x => x.id !== m.id)); if (viewingMeeting === m.id) setViewingMeeting(null); }}
+                              className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 p-1 rounded-md hover:bg-red-100 text-gray-400 hover:text-red-500 transition-all"
+                              title="Delete meeting"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
                           </div>
-                        )}
+                        ))}
                       </div>
                     )}
                   </div>
@@ -2411,7 +3021,21 @@ export default function DoctorDashboard({ onBackToSelector, onSwitchToPatient }:
 
               {/* Input Area - Only for Documents Tab */}
               {rightTab === 'documents' && (
-                <div className="p-6 pt-4 border-t border-gray-200">
+                <div className="p-6 pt-4 border-t border-gray-200 space-y-2">
+                  {/* Staged files preview */}
+                  {uploadedAIFiles.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5">
+                      {uploadedAIFiles.map((file, i) => (
+                        <div key={i} className="flex items-center gap-1 pl-2 pr-1 py-1 bg-blue-50 border border-blue-200 rounded-full text-xs text-blue-700">
+                          <FileText className="w-3 h-3 flex-shrink-0" />
+                          <span className="max-w-[140px] truncate">{file}</span>
+                          <button onClick={() => setUploadedAIFiles(prev => prev.filter((_, j) => j !== i))} className="ml-0.5 hover:text-red-500">
+                            <XIcon className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                   <div className="flex gap-2">
                     <label
                       className="px-4 py-3 rounded-lg border border-gray-300 hover:bg-gray-50 transition-colors cursor-pointer"
@@ -2426,24 +3050,75 @@ export default function DoctorDashboard({ onBackToSelector, onSwitchToPatient }:
                       />
                       <Upload className="w-5 h-5 text-gray-600" />
                     </label>
-                    <input
-                      type="text"
-                      placeholder="Ask AI assistant or describe missing documents..."
-                      value={chatInput}
-                      onChange={(e) => setChatInput(e.target.value)}
-                      onKeyPress={(e) => {
-                        if (e.key === 'Enter' && !e.shiftKey) {
-                          e.preventDefault();
-                          handleSendMessage();
+                    <div className="flex-1 relative">
+                      <input
+                        type="text"
+                        placeholder={isRecording ? '' : currentPatient ? `Ask about ${currentPatient.name}...` : 'Ask AI assistant or upload missing documents...'}
+                        value={chatInput}
+                        onChange={(e) => setChatInput(e.target.value)}
+                        onKeyPress={(e) => {
+                          if (e.key === 'Enter' && !e.shiftKey) {
+                            e.preventDefault();
+                            handleSendMessage();
+                          }
+                        }}
+                        className={`w-full px-4 py-3 pr-12 border rounded-lg text-sm focus:outline-none transition-all duration-200 ${
+                          isRecording
+                            ? 'border-red-400 ring-2 ring-red-200 focus:ring-red-300'
+                            : 'border-gray-300 focus:ring-2 focus:ring-[#3D38F5]'
+                        }`}
+                      />
+                      {/* Waveform + interim transcript — shown only when input is empty */}
+                      {isRecording && !chatInput && (
+                        <div className="absolute left-4 top-1/2 -translate-y-1/2 right-12 flex items-center gap-[3px] pointer-events-none overflow-hidden">
+                          {!interimTranscript && [0.4, 0.7, 1, 0.7, 0.4].map((h, i) => (
+                            <span
+                              key={i}
+                              className="block w-[3px] rounded-full bg-red-400 flex-shrink-0"
+                              style={{
+                                height: `${h * 16}px`,
+                                animation: `voiceBar 0.8s ease-in-out ${i * 0.12}s infinite alternate`
+                              }}
+                            />
+                          ))}
+                          <span className={`text-sm truncate ${interimTranscript ? 'text-red-400 italic' : 'text-red-400 ml-2'}`}>
+                            {interimTranscript || 'Listening...'}
+                          </span>
+                        </div>
+                      )}
+                      {/* Interim transcript appended after confirmed text */}
+                      {isRecording && chatInput && interimTranscript && (
+                        <div className="absolute left-4 top-1/2 -translate-y-1/2 right-12 pointer-events-none text-sm truncate">
+                          <span className="text-transparent">{chatInput} </span>
+                          <span className="text-red-400 italic">{interimTranscript}</span>
+                        </div>
+                      )}
+                      <button
+                        onClick={handleVoiceRecord}
+                        title={isRecording ? 'Stop recording' : 'Start voice input'}
+                        className={`absolute right-3 top-1/2 -translate-y-1/2 transition-colors ${
+                          isRecording ? 'text-red-500' : 'text-gray-400 hover:text-[#3D38F5]'
+                        }`}
+                      >
+                        {isRecording
+                          ? <MicOff className="w-4 h-4" />
+                          : <Mic className="w-4 h-4" />
                         }
-                      }}
-                      className="flex-1 px-4 py-3 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#3D38F5]"
-                    />
+                      </button>
+                    </div>
                     <button
-                      onClick={handleSendMessage}
+                      onClick={generateRandomPrompt}
+                      title="Generate random test prompt"
+                      disabled={isAIThinking}
+                      className="px-3 py-3 rounded-lg border border-gray-300 text-gray-500 hover:border-[#3D38F5] hover:text-[#3D38F5] transition-all disabled:opacity-40"
+                    >
+                      <Sparkles className="w-5 h-5" />
+                    </button>
+                    <button
+                      onClick={() => handleSendMessage()}
                       className="px-4 py-3 rounded-lg text-white hover:opacity-90 disabled:opacity-50"
                       style={{ backgroundColor: '#3D38F5' }}
-                      disabled={!chatInput.trim() || isAIThinking}
+                      disabled={(!chatInput.trim() && uploadedAIFiles.length === 0) || isAIThinking}
                     >
                       {isAIThinking
                         ? <RefreshCw className="w-5 h-5 animate-spin" />
@@ -2458,9 +3133,77 @@ export default function DoctorDashboard({ onBackToSelector, onSwitchToPatient }:
         </div>
       </main>
 
+      {/* Meeting Review Panel */}
+      {meetingState === 'review' && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl flex flex-col max-h-[90vh]">
+            {/* Header */}
+            <div className="flex items-center justify-between p-6 pb-4 border-b border-gray-100">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900">Meeting Recording</h2>
+                <p className="text-xs text-gray-500 mt-0.5">{currentPatient?.name} · {formatDuration(meetingDuration)}</p>
+              </div>
+              <button onClick={() => setMeetingState('idle')} className="p-2 rounded-lg hover:bg-gray-100">
+                <XIcon className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-4">
+              {/* Transcript */}
+              <div>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Full Transcript</p>
+                <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 max-h-48 overflow-y-auto">
+                  <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
+                    {meetingTranscript || <span className="italic text-gray-400">No speech detected during recording.</span>}
+                  </p>
+                </div>
+              </div>
+
+              {/* Summary */}
+              {meetingSummary && (
+                <div>
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">AI Summary</p>
+                  <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4">
+                    <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{meetingSummary}</p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Actions */}
+            <div className="p-6 pt-4 border-t border-gray-100 flex flex-wrap gap-3">
+              <button
+                onClick={summarizeMeeting}
+                disabled={isSummarizing || !meetingTranscript}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-lg border border-indigo-300 text-indigo-700 bg-indigo-50 hover:bg-indigo-100 transition-colors text-sm font-medium disabled:opacity-40"
+              >
+                {isSummarizing ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                {meetingSummary ? 'Re-summarize' : 'Get AI Summary'}
+              </button>
+              <button
+                onClick={saveMeeting}
+                disabled={!meetingTranscript}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-white text-sm font-medium disabled:opacity-40 ml-auto"
+                style={{ backgroundColor: '#3D38F5' }}
+              >
+                <Check className="w-4 h-4" />
+                Save to Meetings
+              </button>
+              <button
+                onClick={() => setMeetingState('idle')}
+                className="px-4 py-2.5 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50 text-sm font-medium"
+              >
+                Discard
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Delete Patient Confirmation Modal */}
       {showDeleteModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-20 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-gray-400/30 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6">
             <div className="flex items-start gap-4 mb-4">
               <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
