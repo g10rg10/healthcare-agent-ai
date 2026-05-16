@@ -6,7 +6,7 @@ Doctor portal for Ospedale Civico di Lugano (OEC).
 React + TypeScript + Vite frontend. No backend.
 
 ## Repo
-- Local folder: `/Users/giorgio/Desktop/healthcare-group-5`
+- Local folder: `/Users/giorgio/Desktop/REPOS/healthcare-group-5` ← always work from here
 - GitHub: `https://github.com/g10rg10/healthcare-agent-ai` (rename pending to `healthcare-group-5`)
 - Branch: `main`
 - Push directly from this folder — it IS the git repo (no separate clone needed)
@@ -43,5 +43,11 @@ React + TypeScript + Vite frontend. No backend.
 - Appointment notes must always be in English, professional clinical descriptions
 
 ## Dev server
-- `npm run dev` — runs on `http://localhost:5173`
+- `npm run dev` — starts on `http://localhost:5173` (falls back to 5174, 5175... if port in use)
 - HMR active — hard reload (`window.location.reload()`) needed for env var changes
+
+## Landing page
+- `src/app/components/StoryPage.tsx` — scrollytelling landing (shown first on `/`)
+- Content from "REFINED Presentation 2.pdf" — Group 5 real data
+- Colors: indigo `#3D35E8`, cyan `#3ECFCF`, deep `#12107A`
+- "Try the live demo" / "Open the portal" → calls `onEnterApp()` → shows `UseCaseSelector`
