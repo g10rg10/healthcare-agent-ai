@@ -1,7 +1,3 @@
-// Using Groq API (OpenAI-compatible, free tier available globally)
-const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
-const GROQ_MODEL = 'llama-3.3-70b-versatile';
-
 const SYSTEM_PROMPT = `You are an AI clinical assistant integrated into the Doctor Portal of Ospedale Civico di Lugano (OEC). You are ALWAYS speaking directly to a licensed physician — never to a patient.
 
 ## Critical rules
@@ -55,12 +51,6 @@ export async function sendMessage(
   history: ChatMessage[],
   patientContext?: string
 ): Promise<string> {
-  const rawKey = import.meta.env.VITE_GROQ_API_KEY || localStorage.getItem('groq_api_key') || '';
-  const apiKey = rawKey.startsWith('gsk_') ? rawKey : '';
-  if (!apiKey) {
-    return '⚠️ Groq API key not configured. Click the gear icon ⚙️ on the home screen to enter your API key.';
-  }
-
   const systemContent = patientContext
     ? `${SYSTEM_PROMPT}\n\n## Current Patient Context\n${patientContext}`
     : SYSTEM_PROMPT;
@@ -71,25 +61,16 @@ export async function sendMessage(
     { role: 'user', content: userMessage }
   ];
 
-  const response = await fetch(GROQ_API_URL, {
+  const response = await fetch('/api/chat', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`
-    },
-    body: JSON.stringify({
-      model: GROQ_MODEL,
-      messages,
-      temperature: 0.3,
-      max_tokens: 1024
-    })
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ messages })
   });
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({}));
-    console.error('Groq API error:', error);
-    const message = error?.error?.message ?? `HTTP ${response.status}`;
-    throw new Error(message);
+    console.error('API error:', error);
+    throw new Error(error?.error ?? `HTTP ${response.status}`);
   }
 
   const data = await response.json();
