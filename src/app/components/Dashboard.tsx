@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Camera, Upload, Calendar, Clock, Mail, Phone, FileText, User, Menu, X, Plus } from 'lucide-react';
+import sanoIcon from '../../assets/sano-icon.png';
 
 export default function Dashboard() {
   const [activeTab, setActiveTab] = useState<'upload' | 'received'>('upload');
@@ -110,14 +111,10 @@ export default function Dashboard() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-red-600 flex items-center justify-center relative">
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <Plus className="w-7 h-7 text-white stroke-[3]" />
-                </div>
-              </div>
+              <img src={sanoIcon} alt="Sano" className="w-10 h-10 object-contain" />
               <div>
-                <h1 className="font-semibold text-gray-900">Swiss Health Portal</h1>
-                <p className="text-sm text-gray-500">Secure Medical Data Platform</p>
+                <h1 className="font-semibold text-gray-900">Sano</h1>
+                <p className="text-sm text-gray-500">Clinical Data Intelligence</p>
               </div>
             </div>
 

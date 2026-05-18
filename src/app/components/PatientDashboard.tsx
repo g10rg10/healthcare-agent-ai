@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Camera, Upload, Calendar, Clock, Mail, Phone, FileText, Menu, X, RefreshCw, CheckCircle, Bot, AlertCircle, MapPin, X as XIcon } from 'lucide-react';
+import sanoIcon from '../../assets/sano-icon.png';
 
 interface PatientDashboardProps {
   onBackToSelector?: () => void;
@@ -247,17 +248,10 @@ export default function PatientDashboard({ onBackToSelector, onSwitchToDoctor }:
         <div className="px-4 sm:px-6 lg:px-8 py-2 lg:py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 lg:gap-3">
-              <div className="w-9 h-9 lg:w-10 lg:h-10 rounded-lg bg-red-600 flex items-center justify-center relative">
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <svg className="w-6 h-6 lg:w-7 lg:h-7 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
-                    <line x1="12" y1="5" x2="12" y2="19" />
-                    <line x1="5" y1="12" x2="19" y2="12" />
-                  </svg>
-                </div>
-              </div>
+              <img src={sanoIcon} alt="Sano" className="w-9 h-9 lg:w-10 lg:h-10 object-contain" />
               <div>
-                <h1 className="text-sm lg:text-base font-semibold text-gray-900">Swiss Health Portal</h1>
-                <p className="text-xs lg:text-sm text-gray-500">Secure Medical Data Platform</p>
+                <h1 className="text-sm lg:text-base font-semibold text-gray-900">Sano</h1>
+                <p className="text-xs lg:text-sm text-gray-500">Clinical Data Intelligence</p>
               </div>
             </div>
 

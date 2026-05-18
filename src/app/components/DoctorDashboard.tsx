@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { Search, FileText, Upload, User, AlertCircle, CheckCircle, Clock, Scan, Send, RotateCcw, Edit3, Bot, Download, RefreshCw, Edit2, X as XIcon, Check, Plus, Trash2, Sparkles, Calendar, Activity, TrendingUp, Pill, Users, Heart, Mail, Phone, Eye, UserX, MapPin, Mic, MicOff } from 'lucide-react';
+import sanoIcon from '../../assets/sano-icon.png';
 
 const getTestPrompts = (name: string) => [
   `Show me ${name}'s latest blood test results, check for any allergy conflicts with current medications, and flag any abnormal lab values`,
@@ -142,7 +143,7 @@ export default function DoctorDashboard({ onBackToSelector, onSwitchToPatient }:
       // Lucia Rossi - PARTIAL data with cardiac issues
       return {
         name: 'Lucia Rossi',
-        dob: '17 April 1965',
+        dob: '17 April 1995',
         condition: {
           symptoms: ['Chest pain', 'Shortness of breath', 'Fatigue'],
           onset: '2026-04-18',
@@ -276,7 +277,7 @@ export default function DoctorDashboard({ onBackToSelector, onSwitchToPatient }:
   const [patientLastName, setPatientLastName] = useState('Rossi');
   const [patientDobDay, setPatientDobDay] = useState('17');
   const [patientDobMonth, setPatientDobMonth] = useState('04');
-  const [patientDobYear, setPatientDobYear] = useState('1965');
+  const [patientDobYear, setPatientDobYear] = useState('1995');
   const [patientSex, setPatientSex] = useState('Female');
   const [patientAVS, setPatientAVS] = useState('756.1234.5678.97');
   const [patientNationality, setPatientNationality] = useState('Italian');
@@ -646,7 +647,7 @@ export default function DoctorDashboard({ onBackToSelector, onSwitchToPatient }:
       setPatientLastName('Rossi');
       setPatientDobDay('17');
       setPatientDobMonth('04');
-      setPatientDobYear('1965');
+      setPatientDobYear('1995');
       setPatientSex('Female');
       setPatientAVS('756.1234.5678.97');
       setPatientNationality('Italian');
@@ -727,8 +728,8 @@ export default function DoctorDashboard({ onBackToSelector, onSwitchToPatient }:
     {
       id: 'CH-2026-4521',
       name: 'Lucia Rossi',
-      dob: '17 April 1965',
-      age: 61,
+      dob: '17 April 1995',
+      age: 31,
       appointmentDate: '2026-05-12',
       appointmentTime: '14:30',
       appointments: [
@@ -1493,14 +1494,9 @@ ${meetingTranscriptRef.current}`,
         <div className="px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-red-600 flex items-center justify-center relative">
-                <svg className="w-7 h-7 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
-                  <line x1="12" y1="5" x2="12" y2="19" />
-                  <line x1="5" y1="12" x2="19" y2="12" />
-                </svg>
-              </div>
+              <img src={sanoIcon} alt="Sano" className="w-10 h-10 object-contain" />
               <div>
-                <h1 className="font-semibold text-gray-900">Swiss Health Portal</h1>
+                <h1 className="font-semibold text-gray-900">Sano</h1>
                 <p className="text-sm text-gray-500">Doctor Portal - OEC Lugano</p>
               </div>
             </div>
@@ -2614,11 +2610,9 @@ ${meetingTranscriptRef.current}`,
                 {rightTab === 'documents' && (
                   <div className="space-y-4">
                     <div className="flex items-center gap-3 mb-4">
-                      <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: '#3D38F5' }}>
-                        <Bot className="w-5 h-5 text-white" />
-                      </div>
+                      <img src={sanoIcon} alt="Sano" className="w-10 h-10 object-contain flex-shrink-0" />
                       <div className="flex-1 min-w-0">
-                        <h3 className="font-semibold text-gray-900">AI Document Helper</h3>
+                        <h3 className="font-semibold text-gray-900">Sano AI</h3>
                         <p className="text-xs text-gray-500">Upload and organize patient documents</p>
                       </div>
                       {currentPatient && (

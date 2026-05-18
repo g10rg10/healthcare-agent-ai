@@ -3,6 +3,7 @@ import PatientDashboard from './PatientDashboard';
 import DoctorDashboard from './DoctorDashboard';
 import ApiKeySettings from './ApiKeySettings';
 import { User, UserCog, ArrowRight } from 'lucide-react';
+import sanoIcon from '../../assets/sano-icon.png';
 
 type ViewMode = 'selector' | 'patient' | 'doctor';
 
@@ -33,16 +34,11 @@ export default function UseCaseSelector({ onShowStory }: { onShowStory?: () => v
         {/* Header */}
         <div className="text-center mb-12">
           <div className="flex items-center justify-center gap-3 mb-4">
-            <div className="w-16 h-16 rounded-xl bg-red-600 flex items-center justify-center">
-              <svg className="w-10 h-10 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
-                <line x1="12" y1="5" x2="12" y2="19" />
-                <line x1="5" y1="12" x2="19" y2="12" />
-              </svg>
-            </div>
+            <img src={sanoIcon} alt="Sano" className="w-16 h-16 object-contain" />
           </div>
-          <h1 className="text-4xl font-bold text-gray-900 mb-3">Swiss Health Portal</h1>
+          <h1 className="text-4xl font-bold text-gray-900 mb-3">Sano</h1>
           <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-            Secure medical document exchange platform for patients and healthcare providers
+            Clinical Data Intelligence — AI-powered medical document processing
           </p>
         </div>
 

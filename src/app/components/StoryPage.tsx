@@ -135,15 +135,20 @@ const onliness = [
   { label: 'WHEN',  text: 'At a time when cross-border mobility is rising but health data interoperability remains a blind spot' },
 ];
 
-const aiFeatures = [
-  { icon: FileText,     label: 'Process medical documents',   sub: 'Detects type and origin' },
-  { icon: Brain,        label: 'Extracts key clinical data',  sub: 'Diagnoses, medications, dosages' },
-  { icon: Layers,       label: 'Standardises medical data',   sub: 'Maps and structures information' },
-  { icon: Pill,         label: 'Maps medications',            sub: 'Suggests Swiss equivalents' },
-  { icon: CheckCircle,  label: 'Generates pre-filled records',sub: 'FHIR/HL7 compatible' },
-  { icon: Cpu,          label: 'Works with hospital systems', sub: 'Converts data for HIS use' },
-  { icon: AlertTriangle,label: 'Flags missing data',          sub: 'Requests input when needed' },
-  { icon: ShieldCheck,  label: 'Escalates complex cases',     sub: 'Defers to physician review' },
+// Bento grid items: style = 'dark' | 'light' | 'gradient', area = CSS grid-area
+const bentoFeatures: { text: string; style: 'dark' | 'light' | 'grad1' | 'grad2'; area: string }[] = [
+  { text: 'Process\nmedical\ndocuments',        style: 'dark',  area: '1 / 1 / 3 / 2' },   // col1, row1-2 tall
+  { text: 'Detects type and\norigin',           style: 'light', area: '1 / 2 / 2 / 3' },   // col2, row1
+  { text: 'Generates\npre-filled\nrecords',     style: 'grad1', area: '1 / 3 / 2 / 4' },   // col3, row1
+  { text: 'Work with\nhospital\nsystems',       style: 'dark',  area: '1 / 4 / 2 / 5' },   // col4, row1
+  { text: 'Extracts key\nclinical data',        style: 'grad2', area: '2 / 2 / 4 / 3' },   // col2, row2-3 tall
+  { text: 'Convert\ndata for use',              style: 'light', area: '2 / 3 / 3 / 4' },   // col3, row2
+  { text: 'Requests\ninput',                    style: 'light', area: '2 / 4 / 3 / 5' },   // col4, row2
+  { text: 'Standardises\nmedical data',         style: 'light', area: '3 / 1 / 4 / 2' },   // col1, row3
+  { text: 'Escalates\ncomplex\ncases',          style: 'dark',  area: '3 / 3 / 5 / 4' },   // col3, row3-4 tall
+  { text: 'Flags missing\nor unclear\ndata',    style: 'grad1', area: '3 / 4 / 5 / 5' },   // col4, row3-4 tall
+  { text: 'Maps\nmedications',                  style: 'light', area: '4 / 1 / 5 / 2' },   // col1, row4
+  { text: 'Suggest\nalternatives',              style: 'light', area: '4 / 2 / 5 / 3' },   // col2, row4
 ];
 
 const paths = [
@@ -274,67 +279,46 @@ function AgentIdentitySection() {
   const ref = useRef<HTMLDivElement>(null);
   const { scrollYProgress: sp } = useScroll({ target: ref, offset: ['start start', 'end end'] });
 
-  /* ── Icon — persistent across phases 1-3, centered ── */
-  const iconOp    = useTransform(sp, [0.02, 0.08, 0.78, 0.84], [0, 1, 1, 0], { clamp: true });
-  const iconScale = useTransform(sp, [0.02, 0.10], [0.6, 1], { clamp: true });
+  // Track current phase via state — bulletproof, no stacking issues
+  const [phase, setPhase] = useState(0);
+  useEffect(() => {
+    const unsub = sp.on('change', (v: number) => {
+      if (v < 0.22) setPhase(1);
+      else if (v < 0.50) setPhase(2);
+      else if (v < 0.78) setPhase(3);
+      else setPhase(4);
+    });
+    return unsub;
+  }, [sp]);
 
-  /* ── Phase 1: "Introducing:" + logotype next to icon (0 → 22%) ── */
-  const introOp     = useTransform(sp, [0.03, 0.08], [0, 1], { clamp: true });
-  const introY      = useTransform(sp, [0.03, 0.08], [20, 0], { clamp: true });
-  const logotypeOp  = useTransform(sp, [0.04, 0.10, 0.16, 0.22], [0, 1, 1, 0], { clamp: true });
-  const logotypeX   = useTransform(sp, [0.16, 0.22], [0, 40], { clamp: true });
-  // Icon shifts left when logotype is visible, then centers
-  const iconX       = useTransform(sp, [0.16, 0.24], [-60, 0], { clamp: true });
+  /* ── Icon — visible in phases 1-3, fades out before phase 4 ── */
+  const iconOp    = useTransform(sp, [0.01, 0.06, 0.68, 0.74], [0, 1, 1, 0], { clamp: true });
+  const iconScale = useTransform(sp, [0.01, 0.08], [0.5, 1], { clamp: true });
 
-  /* ── Phase 2: Personality (22 → 52%) ── */
-  const persLabelOp = useTransform(sp, [0.24, 0.30, 0.46, 0.52], [0, 1, 1, 0], { clamp: true });
-  const persLabelY  = useTransform(sp, [0.24, 0.30], [24, 0], { clamp: true });
+  /* ── Phase 1 intro elements ── */
+  const introOp      = useTransform(sp, [0.02, 0.06, 0.16, 0.21], [0, 1, 1, 0], { clamp: true });
+  const logotypeOp   = useTransform(sp, [0.03, 0.08, 0.16, 0.21], [0, 1, 1, 0], { clamp: true });
 
-  const persPills = [
-    { text: 'Precise',    xr: [-280, -160], yr: [-55, -55],  delay: 0 },
-    { text: 'Structured', xr: [280, 160],   yr: [-55, -55],  delay: 0.02 },
-    { text: 'Reliable',   xr: [-230, -140], yr: [55, 55],    delay: 0.04 },
-    { text: 'Safe',       xr: [230, 140],   yr: [55, 55],    delay: 0.06 },
+  /* ── Phase 2 personality elements ── */
+  const persOp = useTransform(sp, [0.23, 0.28, 0.44, 0.49], [0, 1, 1, 0], { clamp: true });
+
+  /* ── Phase 3 tone elements ── */
+  const toneOp = useTransform(sp, [0.51, 0.56, 0.74, 0.79], [0, 1, 1, 0], { clamp: true });
+
+  /* ── Phase 4 features — fade in and STAY visible ── */
+  const featOp = useTransform(sp, [0.80, 0.88], [0, 1], { clamp: true });
+  const featY  = useTransform(sp, [0.80, 0.88], [40, 0], { clamp: true });
+
+  const persPills = ['Precise', 'Structured', 'Reliable', 'Safe'];
+  const tonePills = ['Concise', 'Action-oriented', 'Direct', 'Respectful'];
+
+  // Pill positions: tight around the icon
+  const pillPositions = [
+    { top: '38%', left: '28%' },
+    { top: '38%', right: '28%' },
+    { bottom: '30%', left: '30%' },
+    { bottom: '30%', right: '30%' },
   ];
-  const ppAnims = persPills.map((p) => {
-    const s = 0.30 + p.delay;
-    const e = 0.46;
-    return {
-      // eslint-disable-next-line react-hooks/rules-of-hooks
-      op: useTransform(sp, [s, s + 0.06, e, e + 0.06], [0, 1, 1, 0], { clamp: true }),
-      // eslint-disable-next-line react-hooks/rules-of-hooks
-      x:  useTransform(sp, [s, s + 0.06], p.xr, { clamp: true }),
-      // eslint-disable-next-line react-hooks/rules-of-hooks
-      y:  useTransform(sp, [s, s + 0.06], p.yr, { clamp: true }),
-    };
-  });
-
-  /* ── Phase 3: Tone of Voice (52 → 80%) ── */
-  const toneLabelOp = useTransform(sp, [0.52, 0.58, 0.74, 0.80], [0, 1, 1, 0], { clamp: true });
-  const toneLabelY  = useTransform(sp, [0.52, 0.58], [24, 0], { clamp: true });
-
-  const tonePills = [
-    { text: 'Concise',          xr: [-280, -160], yr: [-55, -55],  delay: 0 },
-    { text: 'Action-oriented',  xr: [280, 160],   yr: [-55, -55],  delay: 0.02 },
-    { text: 'Direct',           xr: [-230, -140], yr: [55, 55],    delay: 0.04 },
-    { text: 'Respectful',       xr: [230, 140],   yr: [55, 55],    delay: 0.06 },
-  ];
-  const tpAnims = tonePills.map((p) => {
-    const s = 0.58 + p.delay;
-    const e = 0.74;
-    return {
-      // eslint-disable-next-line react-hooks/rules-of-hooks
-      op: useTransform(sp, [s, s + 0.06, e, e + 0.06], [0, 1, 1, 0], { clamp: true }),
-      // eslint-disable-next-line react-hooks/rules-of-hooks
-      x:  useTransform(sp, [s, s + 0.06], p.xr, { clamp: true }),
-      // eslint-disable-next-line react-hooks/rules-of-hooks
-      y:  useTransform(sp, [s, s + 0.06], p.yr, { clamp: true }),
-    };
-  });
-
-  /* ── Phase 4: Key Features (84 → 100%) ── */
-  const featOp = useTransform(sp, [0.84, 0.90], [0, 1], { clamp: true });
-  const featY  = useTransform(sp, [0.84, 0.90], [40, 0], { clamp: true });
 
   return (
     <div ref={ref} style={{ minHeight: '400vh', background: C.ice }}>
@@ -345,117 +329,145 @@ function AgentIdentitySection() {
         <div className="absolute inset-0 pointer-events-none"
           style={{ background: `radial-gradient(ellipse 50% 40% at 50% 50%, rgba(61,53,232,0.06) 0%, transparent 100%)` }} />
 
-        {/* Badge */}
-        <div className="absolute top-6 left-6 z-20 flex items-center gap-2 px-3 py-1.5 rounded-full border border-gray-200 bg-white/80 backdrop-blur-sm">
-          <div className="w-2 h-2 rounded-full" style={{ background: C.indigo }} />
-          <span className="text-xs font-bold tracking-widest uppercase" style={{ color: C.indigo }}>AI Agent Identity</span>
-        </div>
+        {/* ── Single centered content area ── */}
+        <div className="relative flex flex-col items-center justify-center z-10 w-full max-w-4xl px-6">
 
-        {/* ── Persistent icon — visible across phases 1-3, always centered ── */}
-        <div className="absolute inset-0 flex items-center justify-center z-10 pointer-events-none">
-          <motion.div style={{ opacity: iconOp, scale: iconScale, x: iconX }}>
-            <img src={sanoIcon} alt="Sano" className="w-32 h-32 md:w-44 md:h-44 object-contain" />
-          </motion.div>
-        </div>
+          {/* Badge — centered above phase label, hidden in phase 4 */}
+          {phase !== 4 && (
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-gray-200 bg-white/80 backdrop-blur-sm mb-4">
+              <div className="w-2 h-2 rounded-full" style={{ background: C.indigo }} />
+              <span className="text-xs font-bold tracking-widest uppercase" style={{ color: C.indigo }}>AI Agent Identity</span>
+            </div>
+          )}
 
-        {/* ── Phase 1: "Introducing:" label + logotype next to icon ── */}
-        <div className="absolute inset-0 flex items-center justify-center z-10 pointer-events-none">
-          {/* "Introducing:" above icon */}
-          <div className="absolute" style={{ top: '50%', marginTop: -140 }}>
-            <motion.p
-              className="text-sm md:text-base font-semibold tracking-widest uppercase text-center"
-              style={{ opacity: introOp, y: introY, color: C.indigo }}>
-              Introducing
-            </motion.p>
-          </div>
-          {/* Logotype (text only) to the right of icon */}
-          <motion.div
-            className="absolute"
-            style={{
-              left: '50%', top: '50%',
-              marginLeft: 90, marginTop: -50,
-              opacity: logotypeOp, x: logotypeX,
-            }}>
-            <img src={sanoLogotype} alt="Sano Clinical Data Intelligence"
-              className="h-20 md:h-24 object-contain" />
-          </motion.div>
-        </div>
-
-        {/* ── Phase 2: Personality label + pills ── */}
-        <div className="absolute inset-0 flex items-center justify-center z-10 pointer-events-none">
-          <div className="relative" style={{ width: '80vw', maxWidth: 700, height: 400 }}>
-            {/* "PERSONALITY" label above icon */}
-            <div className="absolute left-1/2 -translate-x-1/2" style={{ top: 16 }}>
+          {/* Phase label — just above icon */}
+          <div className="mb-4 h-12 flex items-end justify-center">
+            {phase === 1 && (
+              <motion.p
+                className="text-sm md:text-base font-semibold tracking-widest uppercase"
+                style={{ opacity: introOp, color: C.indigo }}>
+                Introducing
+              </motion.p>
+            )}
+            {phase === 2 && (
               <motion.h2
-                className="text-2xl md:text-4xl font-extrabold tracking-wide uppercase text-center whitespace-nowrap"
+                className="text-2xl md:text-4xl font-extrabold tracking-wide uppercase text-center"
                 style={{
-                  opacity: persLabelOp, y: persLabelY,
+                  opacity: persOp,
                   backgroundImage: `linear-gradient(90deg, ${C.deep}, ${C.indigo}, ${C.cyan})`,
                   WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
                 }}>Personality</motion.h2>
-            </div>
-            {/* Pills — wrapper centers, motion.span offsets via x/y */}
-            {persPills.map((p, i) => (
-              <div key={p.text} className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-                <motion.span
-                  className="block px-5 py-2.5 rounded-full text-sm font-bold shadow-lg whitespace-nowrap text-white"
-                  style={{
-                    background: C.indigo,
-                    opacity: ppAnims[i].op, x: ppAnims[i].x, y: ppAnims[i].y,
-                  }}>{p.text}</motion.span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* ── Phase 3: Tone of Voice label + pills ── */}
-        <div className="absolute inset-0 flex items-center justify-center z-10 pointer-events-none">
-          <div className="relative" style={{ width: '80vw', maxWidth: 700, height: 400 }}>
-            {/* "TONE OF VOICE" label above icon */}
-            <div className="absolute left-1/2 -translate-x-1/2" style={{ top: 16 }}>
+            )}
+            {phase === 3 && (
               <motion.h2
-                className="text-2xl md:text-4xl font-extrabold tracking-wide uppercase text-center whitespace-nowrap"
+                className="text-2xl md:text-4xl font-extrabold tracking-wide uppercase text-center"
                 style={{
-                  opacity: toneLabelOp, y: toneLabelY,
+                  opacity: toneOp,
                   backgroundImage: `linear-gradient(90deg, ${C.cyan}, ${C.indigo}, ${C.deep})`,
                   WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
                 }}>Tone of Voice</motion.h2>
-            </div>
-            {/* Pills */}
-            {tonePills.map((p, i) => (
-              <div key={p.text} className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-                <motion.span
-                  className="block px-5 py-2.5 rounded-full text-sm font-bold shadow-lg whitespace-nowrap text-white"
-                  style={{
-                    background: C.cyan,
-                    opacity: tpAnims[i].op, x: tpAnims[i].x, y: tpAnims[i].y,
-                  }}>{p.text}</motion.span>
-              </div>
-            ))}
+            )}
+          </div>
+
+          {/* Icon — always centered, hidden in phase 4 */}
+          {phase !== 4 && (
+            <motion.div style={{ opacity: iconOp, scale: iconScale }}>
+              <img src={sanoIcon} alt="Sano" className="w-36 h-36 md:w-48 md:h-48 object-contain" />
+            </motion.div>
+          )}
+
+          {/* Below icon — logotype in phase 1 */}
+          <div className="mt-5 h-16 flex items-start justify-center">
+            {phase === 1 && (
+              <motion.div style={{ opacity: logotypeOp }}>
+                <img src={sanoLogotype} alt="Sano Clinical Data Intelligence"
+                  className="h-14 md:h-16 object-contain" />
+              </motion.div>
+            )}
           </div>
         </div>
 
-        {/* ── Phase 4: Key Features ── */}
-        <motion.div className="absolute bottom-0 left-0 right-0 px-6 pb-8 z-10"
-          style={{ opacity: featOp, y: featY }}>
-          <p className="text-xs font-bold tracking-widest uppercase text-center mb-4" style={{ color: C.indigo }}>
-            Key Features
-          </p>
-          <div className="max-w-5xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-3">
-            {aiFeatures.map(({ icon: FeatIcon, label, sub }) => (
-              <div key={label}
-                className="rounded-xl p-4 bg-white border border-gray-100 flex items-center gap-3 shadow-sm">
-                <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: `${C.indigo}12` }}>
-                  <FeatIcon className="w-4 h-4" style={{ color: C.indigo }} />
-                </div>
-                <div>
-                  <p className="font-semibold text-gray-900 text-xs leading-snug">{label}</p>
-                  <p className="text-gray-400 text-[10px] mt-0.5">{sub}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </motion.div>
+        {/* ── Pills overlay — absolute positioned around the icon ── */}
+        {phase === 2 && persPills.map((text, i) => (
+          <motion.span key={text}
+            className="absolute px-5 py-2.5 rounded-full text-sm font-bold shadow-lg whitespace-nowrap text-white z-10"
+            style={{
+              background: C.indigo,
+              opacity: persOp,
+              ...pillPositions[i],
+            }}>{text}</motion.span>
+        ))}
+
+        {phase === 3 && tonePills.map((text, i) => (
+          <motion.span key={text}
+            className="absolute px-5 py-2.5 rounded-full text-sm font-bold shadow-lg whitespace-nowrap text-white z-10"
+            style={{
+              background: C.cyan,
+              opacity: toneOp,
+              ...pillPositions[i],
+            }}>{text}</motion.span>
+        ))}
+
+        {/* ── Phase 4: Bento Key Features — fade in, no fade out ── */}
+        {phase === 4 && (
+          <motion.div
+            className="absolute inset-0 flex flex-col items-center justify-center px-4 z-20 bg-[#F5F5FF]"
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}>
+            {/* Badge + Title */}
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-gray-200 bg-white/80 backdrop-blur-sm mb-6">
+              <div className="w-2 h-2 rounded-full" style={{ background: C.indigo }} />
+              <span className="text-xs font-bold tracking-widest uppercase" style={{ color: C.indigo }}>Key Features of AI Agent</span>
+            </div>
+            <div className="w-full max-w-5xl"
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(4, 1fr)',
+                gridTemplateRows: 'repeat(4, 1fr)',
+                gap: 10,
+                aspectRatio: '4 / 3.2',
+                maxHeight: '80vh',
+              }}>
+              {bentoFeatures.map(({ text, style: s, area }) => {
+                const isDark = s === 'dark';
+                const isGrad1 = s === 'grad1';
+                const isGrad2 = s === 'grad2';
+                const bg = isDark
+                  ? '#111'
+                  : isGrad1
+                    ? `linear-gradient(135deg, ${C.cyan} 0%, ${C.indigo} 100%)`
+                    : isGrad2
+                      ? `linear-gradient(135deg, ${C.deep} 0%, ${C.indigo} 60%, ${C.cyan} 100%)`
+                      : C.ice;
+                const useWhite = isGrad1 || isGrad2;
+                const useGradientText = isDark || (!isGrad1 && !isGrad2 && !isDark);
+
+                return (
+                  <div key={text}
+                    className="rounded-2xl flex items-center justify-center p-5"
+                    style={{
+                      gridArea: area,
+                      background: bg,
+                    }}>
+                    <p className="text-center font-extrabold text-lg md:text-xl lg:text-2xl leading-tight whitespace-pre-line"
+                      style={
+                        useWhite
+                          ? { color: 'white' }
+                          : {
+                              backgroundImage: isDark
+                                ? `linear-gradient(135deg, ${C.cyan}, ${C.indigo})`
+                                : `linear-gradient(135deg, ${C.deep}, ${C.indigo}, ${C.cyan})`,
+                              WebkitBackgroundClip: 'text',
+                              WebkitTextFillColor: 'transparent',
+                            }
+                      }>{text}</p>
+                  </div>
+                );
+              })}
+            </div>
+          </motion.div>
+        )}
       </div>
     </div>
   );
@@ -676,10 +688,13 @@ function ScrollTransformCard({
   const solOp      = useTransform(progress, [0.50, 0.80], [0, 1]);
   const solY       = useTransform(progress, [0.50, 0.80], [20, 0]);
   const barW       = useTransform(progress, [0, 1], ['0%', '100%']);
-  const borderA    = useTransform(progress, [0, 0.5, 1], ['rgba(255,255,255,0.08)', 'rgba(255,255,255,0.08)', solution.color + '55']);
-  // Icon: gray in issue state → colored in solution state
-  const iconColor  = useTransform(progress, [0.50, 0.80], ['#6b7280', issue.color]);
-  const iconBg     = useTransform(progress, [0.50, 0.80], ['rgba(107,114,128,0.15)', issue.color + '40']);
+  const borderA    = useTransform(progress, [0, 0.5, 1], ['rgba(255,255,255,0.08)', 'rgba(255,255,255,0.08)', `${C.indigo}55`]);
+  const cardBg     = useTransform(progress, [0.45, 0.75], ['rgba(255,255,255,0.04)', '#ffffff']);
+  // Icon: gray in issue state → indigo in solution state
+  const iconColor  = useTransform(progress, [0.50, 0.80], ['#6b7280', C.indigo]);
+  const iconBg     = useTransform(progress, [0.50, 0.80], ['rgba(107,114,128,0.15)', `${C.indigo}25`]);
+  // Text color for description
+  const descColor  = useTransform(progress, [0.45, 0.75], ['rgba(255,255,255,0.55)', '#4b5563']);
 
   const titleStyle = {
     backgroundImage: `linear-gradient(90deg, #f87171, #94a3b8)`,
@@ -690,7 +705,7 @@ function ScrollTransformCard({
   return (
     <motion.div
       className="rounded-2xl relative overflow-hidden flex flex-col"
-      style={{ background: 'rgba(255,255,255,0.04)', height: 280, border: '1px solid', borderColor: borderA }}
+      style={{ background: cardBg, height: 280, border: '1px solid', borderColor: borderA }}
     >
       <div className="p-6 flex flex-col flex-1">
         <motion.div className="w-10 h-10 rounded-xl flex items-center justify-center mb-5 flex-shrink-0"
@@ -725,23 +740,23 @@ function ScrollTransformCard({
           <motion.div className="absolute inset-0 flex flex-col gap-3 justify-start" style={{ opacity: solOp, y: solY }}>
             <div className="flex items-start gap-2">
               <div className="flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center mt-1"
-                style={{ background: `${solution.color}30` }}>
-                <CheckCircle className="w-3 h-3" style={{ color: solution.color }} />
+                style={{ background: `${C.indigo}20` }}>
+                <CheckCircle className="w-3 h-3" style={{ color: C.indigo }} />
               </div>
               <h3 style={{
-                backgroundImage: `linear-gradient(135deg, ${solution.color}, ${C.cyan})`,
+                backgroundImage: `linear-gradient(135deg, ${C.deep}, ${C.indigo}, ${C.cyan})`,
                 WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
                 fontWeight: 800, fontSize: '1.35rem', lineHeight: 1.25,
               }}>{solution.to}</h3>
             </div>
-            <p className="text-white/60 text-sm leading-relaxed">{solution.desc}</p>
+            <motion.p className="text-sm leading-relaxed" style={{ color: descColor }}>{solution.desc}</motion.p>
           </motion.div>
         </div>
       </div>
 
       {/* Progress bar */}
       <motion.div className="absolute bottom-0 left-0 h-[3px]"
-        style={{ width: barW, background: `linear-gradient(90deg, ${issue.color}, ${C.cyan})` }} />
+        style={{ width: barW, background: `linear-gradient(90deg, ${C.indigo}, ${C.cyan})` }} />
     </motion.div>
   );
 }
@@ -997,6 +1012,22 @@ export default function StoryPage({ onEnterApp }: { onEnterApp: () => void }) {
         </div>
       </section>
 
+      {/* ── WHY NOT SECONDS ──────────────────────────────────────────────── */}
+      <section className="py-24 px-6 bg-white">
+        <div className="max-w-4xl mx-auto text-center">
+          <FadeUp>
+            <h2 className="text-4xl md:text-5xl lg:text-6xl font-extrabold leading-tight"
+              style={{
+                backgroundImage: `linear-gradient(135deg, ${C.deep} 0%, ${C.indigo} 40%, ${C.cyan} 100%)`,
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+              }}>
+              Why does patient registration not take seconds?
+            </h2>
+          </FadeUp>
+        </div>
+      </section>
+
       {/* ── ISSUES → SOLUTIONS (sticky scroll) ───────────────────────────── */}
       <div ref={issuesRef} style={{ minHeight: '200vh', background: '#0a0920' }}>
         <div className="sticky top-0 min-h-screen flex flex-col justify-center py-3 px-6 overflow-hidden"
@@ -1170,57 +1201,6 @@ export default function StoryPage({ onEnterApp }: { onEnterApp: () => void }) {
         </div>
       </section>
 
-      {/* ── AI AGENT IDENTITY (scroll-animated) ────────────────────────── */}
-      <AgentIdentitySection />
-
-      {/* ── 3 PATHS ───────────────────────────────────────────────────────── */}
-      <section
-        className="relative py-32 px-6 overflow-hidden"
-        style={{ background: `linear-gradient(180deg, #0f0e2e 0%, #0d0b4a 100%)` }}
-      >
-        <Particles count={10} />
-        <div className="max-w-5xl mx-auto relative z-10">
-          <FadeUp className="text-center mb-16">
-            <span className="text-sm font-semibold tracking-widest uppercase mb-3 block" style={{ color: C.cyan }}>Clinical Data Integration</span>
-            <h2 className="text-4xl md:text-5xl font-extrabold text-white leading-tight">
-              Three paths.<br />One outcome.
-            </h2>
-            <p className="text-slate-400 mt-4 max-w-xl mx-auto">
-              The system adapts to how much the patient uploads. In every case, the doctor receives a structured, pre-filled record ready to approve.
-            </p>
-          </FadeUp>
-
-          <div className="grid md:grid-cols-3 gap-6">
-            {paths.map(({ id, label, color, bg, patient, doctor, outcome }, i) => (
-              <motion.div key={id}
-                className="rounded-2xl p-7 border border-white/8 flex flex-col gap-5"
-                style={{ background: bg }}
-                initial={{ opacity: 0, y: 50 }} whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, margin: '-40px' }}
-                transition={{ duration: 0.65, delay: i * 0.13, ease: [0.22, 1, 0.36, 1] }}
-              >
-                <p className="text-xs font-bold tracking-widest uppercase" style={{ color }}>{label}</p>
-                <div className="space-y-4">
-                  <div>
-                    <p className="text-xs text-slate-500 uppercase tracking-wide mb-1">Patient</p>
-                    <p className="text-slate-300 text-sm leading-relaxed">{patient}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-slate-500 uppercase tracking-wide mb-1">Doctor</p>
-                    <p className="text-slate-300 text-sm leading-relaxed">{doctor}</p>
-                  </div>
-                </div>
-                <div className="border-t border-white/8 pt-4 mt-auto">
-                  <p className="text-xs font-medium leading-relaxed" style={{ color }}>{outcome}</p>
-                </div>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-
-
       {/* ── INTENT MAP ────────────────────────────────────────────────────── */}
       <section className="py-28 px-6 overflow-hidden" style={{ background: C.ice }}>
         <div className="max-w-4xl mx-auto">
@@ -1285,6 +1265,54 @@ export default function StoryPage({ onEnterApp }: { onEnterApp: () => void }) {
         </div>
       </section>
 
+      {/* ── AI AGENT IDENTITY (scroll-animated) ────────────────────────── */}
+      <AgentIdentitySection />
+
+      {/* ── 3 PATHS ───────────────────────────────────────────────────────── */}
+      <section
+        className="relative py-32 px-6 overflow-hidden"
+        style={{ background: `linear-gradient(180deg, #0f0e2e 0%, #0d0b4a 100%)` }}
+      >
+        <Particles count={10} />
+        <div className="max-w-5xl mx-auto relative z-10">
+          <FadeUp className="text-center mb-16">
+            <span className="text-sm font-semibold tracking-widest uppercase mb-3 block" style={{ color: C.cyan }}>Clinical Data Integration</span>
+            <h2 className="text-4xl md:text-5xl font-extrabold text-white leading-tight">
+              Three paths.<br />One outcome.
+            </h2>
+            <p className="text-slate-400 mt-4 max-w-xl mx-auto">
+              The system adapts to how much the patient uploads. In every case, the doctor receives a structured, pre-filled record ready to approve.
+            </p>
+          </FadeUp>
+
+          <div className="grid md:grid-cols-3 gap-6">
+            {paths.map(({ id, label, color, bg, patient, doctor, outcome }, i) => (
+              <motion.div key={id}
+                className="rounded-2xl p-7 border border-white/8 flex flex-col gap-5"
+                style={{ background: bg }}
+                initial={{ opacity: 0, y: 50 }} whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: '-40px' }}
+                transition={{ duration: 0.65, delay: i * 0.13, ease: [0.22, 1, 0.36, 1] }}
+              >
+                <p className="text-xs font-bold tracking-widest uppercase" style={{ color }}>{label}</p>
+                <div className="space-y-4">
+                  <div>
+                    <p className="text-xs text-slate-500 uppercase tracking-wide mb-1">Patient</p>
+                    <p className="text-slate-300 text-sm leading-relaxed">{patient}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-500 uppercase tracking-wide mb-1">Doctor</p>
+                    <p className="text-slate-300 text-sm leading-relaxed">{doctor}</p>
+                  </div>
+                </div>
+                <div className="border-t border-white/8 pt-4 mt-auto">
+                  <p className="text-xs font-medium leading-relaxed" style={{ color }}>{outcome}</p>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
       {/* ── SCALABILITY ───────────────────────────────────────────────────── */}
       <section
         className="relative py-32 px-6 overflow-hidden"
@@ -1335,11 +1363,94 @@ export default function StoryPage({ onEnterApp }: { onEnterApp: () => void }) {
             ))}
           </div>
 
-          {/* Closing line */}
-          <FadeUp delay={0.2} className="text-center">
-            <p className="text-2xl md:text-4xl font-extrabold text-white">
+        </div>
+      </section>
+
+      {/* ── SCALE CHALLENGE ───────────────────────────────────────────────── */}
+      <section className="py-32 px-6 overflow-hidden bg-white">
+        <div className="max-w-5xl mx-auto">
+          <FadeUp className="text-center mb-20">
+            <h2 className="text-4xl md:text-6xl lg:text-7xl font-extrabold leading-tight"
+              style={{
+                backgroundImage: `linear-gradient(135deg, ${C.deep} 0%, ${C.indigo} 40%, ${C.cyan} 100%)`,
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+              }}>
+              How can we scale if healthcare systems stay different?
+            </h2>
+          </FadeUp>
+
+          {/* EU + Worldwide comparison */}
+          <div className="grid md:grid-cols-2 gap-8 mb-12">
+            {/* EU Card */}
+            <FadeUp delay={0.1}>
+              <div className="rounded-2xl border border-gray-200 bg-gray-50 p-8">
+                <h3 className="text-2xl md:text-3xl font-extrabold text-center mb-8" style={{ color: C.deep }}>EU</h3>
+                <div className="grid grid-cols-2 gap-x-8 gap-y-4">
+                  {[
+                    'MyHealth@EU', 'Expansion layer',
+                    'Cross-border infrastructure', 'Complementary implementation',
+                    'ePrescriptions / eDispensations', 'Workflow integration',
+                    'Patient Summary', 'Medical images',
+                    'Discharge reports', 'Information enrichment',
+                    'Lab results', '',
+                  ].map((item, i) => item ? (
+                    <p key={i} className="text-sm md:text-base font-bold leading-snug"
+                      style={{
+                        backgroundImage: `linear-gradient(135deg, ${C.deep}, ${C.indigo}, ${C.cyan})`,
+                        WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
+                      }}>{item}</p>
+                  ) : <div key={i} />)}
+                </div>
+              </div>
+            </FadeUp>
+
+            {/* Worldwide Card */}
+            <FadeUp delay={0.2}>
+              <div className="rounded-2xl border border-gray-200 bg-gray-50 p-8">
+                <h3 className="text-2xl md:text-3xl font-extrabold text-center mb-8" style={{ color: C.deep }}>WORLDWIDE</h3>
+                <div className="grid grid-cols-2 gap-x-8 gap-y-4">
+                  {[
+                    'Digital SMART Guidelines (WHO)', 'Interoperability',
+                    'Therapy initialisation', 'Heterogeneous documents',
+                    'Digital health implementation', 'Lack of standardised infrastructure',
+                    'Care-based', 'Translation',
+                    'Local adaptation', 'Error-prone / Time-consuming',
+                    'Data usability', '',
+                  ].map((item, i) => item ? (
+                    <p key={i} className="text-sm md:text-base font-bold leading-snug"
+                      style={{
+                        backgroundImage: `linear-gradient(135deg, ${C.deep}, ${C.indigo}, ${C.cyan})`,
+                        WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
+                      }}>{item}</p>
+                  ) : <div key={i} />)}
+                </div>
+              </div>
+            </FadeUp>
+          </div>
+
+          {/* Sources */}
+          <p className="text-xs text-gray-400">
+            Source:{' '}
+            <span style={{ color: C.indigo }}>MyHealth@EU / cross-border health services</span>
+            {' · '}
+            <span style={{ color: C.cyan }}>WHO SMART Guidelines</span>
+          </p>
+        </div>
+      </section>
+
+      {/* ── CLOSING LINE ─────────────────────────────────────────────────── */}
+      <section className="py-32 px-6 bg-white">
+        <div className="max-w-4xl mx-auto text-center">
+          <FadeUp>
+            <p className="text-3xl md:text-5xl lg:text-6xl font-extrabold leading-tight"
+              style={{
+                backgroundImage: `linear-gradient(135deg, ${C.deep} 0%, ${C.indigo} 40%, ${C.cyan} 100%)`,
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+              }}>
               When data becomes usable,{' '}
-              <span style={{ color: C.cyan }}>care begins sooner.</span>
+              care begins sooner.
             </p>
           </FadeUp>
         </div>
@@ -1355,14 +1466,11 @@ export default function StoryPage({ onEnterApp }: { onEnterApp: () => void }) {
           <FadeUp>
             <motion.div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-white/20 bg-white/10 backdrop-blur-sm text-white/70 text-sm font-medium mb-8">
               <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              Live demo — no account required
+              Live demo
             </motion.div>
-            <h2 className="text-5xl md:text-7xl font-extrabold text-white leading-[1.05] mb-5">
+            <h2 className="text-5xl md:text-7xl font-extrabold text-white leading-[1.05] mb-12">
               See it in action.
             </h2>
-            <p className="text-slate-300 text-xl mb-12 max-w-xl mx-auto leading-relaxed">
-              Explore the Doctor Portal with sample patient data, AI clinical assistant, and real-time transcription — in your browser, right now.
-            </p>
             <motion.button
               onClick={onEnterApp}
               className="group inline-flex items-center gap-3 px-10 py-5 rounded-2xl text-lg font-bold text-white"
@@ -1376,16 +1484,6 @@ export default function StoryPage({ onEnterApp }: { onEnterApp: () => void }) {
           </FadeUp>
         </div>
       </section>
-
-      {/* ── FOOTER ────────────────────────────────────────────────────────── */}
-      <footer className="py-10 px-6 text-center" style={{ background: '#080717' }}>
-        <p className="text-slate-600 text-sm">
-          Group 5 · Riccardo Assirelli, Edoardo Carlani, Giorgio Gaudio, Lynn Germiquet, Artem Sadoviy
-        </p>
-        <p className="text-slate-700 text-xs mt-1">
-          Swiss Health Portal · Ospedale Civico di Lugano · University prototype — not for clinical use
-        </p>
-      </footer>
 
     </div>
   );
