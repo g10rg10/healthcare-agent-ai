@@ -4,12 +4,18 @@ import {
   ArrowRight, ChevronDown, Globe, FileText,
   Pill, Brain, ShieldCheck, Zap, Users, Activity,
   CheckCircle, AlertTriangle, Layers, Cpu, Stethoscope,
-  Hospital, ClipboardList, UserRound, Siren
+  Hospital, ClipboardList, UserRound, Siren,
+  ScanSearch, DatabaseZap, MessageCircleQuestion,
+  GitCompareArrows, Flag, Lightbulb, type LucideIcon
 } from 'lucide-react';
 import avatarDoctor from '../../assets/avatar-doctor.png';
 import avatarPatient from '../../assets/avatar-patient.png';
 import sanoIcon from '../../assets/sano-icon.png';
 import sanoLogotype from '../../assets/sano-logotype.png';
+import dashboardPreview from '../../assets/doctor-dashboard-preview.png';
+import patientPreview from '../../assets/patient-dashboard-preview.png';
+import finalPreview from '../../assets/final.png';
+import FeatureCards from './FeatureCards';
 
 // ── Brand palette ──────────────────────────────────────────────────────────
 const C = {
@@ -135,20 +141,20 @@ const onliness = [
   { label: 'WHEN',  text: 'At a time when cross-border mobility is rising but health data interoperability remains a blind spot' },
 ];
 
-// Bento grid items: style = 'dark' | 'light' | 'gradient', area = CSS grid-area
-const bentoFeatures: { text: string; style: 'dark' | 'light' | 'grad1' | 'grad2'; area: string }[] = [
-  { text: 'Process\nmedical\ndocuments',        style: 'dark',  area: '1 / 1 / 3 / 2' },   // col1, row1-2 tall
-  { text: 'Detects type and\norigin',           style: 'light', area: '1 / 2 / 2 / 3' },   // col2, row1
-  { text: 'Generates\npre-filled\nrecords',     style: 'grad1', area: '1 / 3 / 2 / 4' },   // col3, row1
-  { text: 'Work with\nhospital\nsystems',       style: 'dark',  area: '1 / 4 / 2 / 5' },   // col4, row1
-  { text: 'Extracts key\nclinical data',        style: 'grad2', area: '2 / 2 / 4 / 3' },   // col2, row2-3 tall
-  { text: 'Convert\ndata for use',              style: 'light', area: '2 / 3 / 3 / 4' },   // col3, row2
-  { text: 'Requests\ninput',                    style: 'light', area: '2 / 4 / 3 / 5' },   // col4, row2
-  { text: 'Standardises\nmedical data',         style: 'light', area: '3 / 1 / 4 / 2' },   // col1, row3
-  { text: 'Escalates\ncomplex\ncases',          style: 'dark',  area: '3 / 3 / 5 / 4' },   // col3, row3-4 tall
-  { text: 'Flags missing\nor unclear\ndata',    style: 'grad1', area: '3 / 4 / 5 / 5' },   // col4, row3-4 tall
-  { text: 'Maps\nmedications',                  style: 'light', area: '4 / 1 / 5 / 2' },   // col1, row4
-  { text: 'Suggest\nalternatives',              style: 'light', area: '4 / 2 / 5 / 3' },   // col2, row4
+// Bento grid items — Apple-style white cards with icons, simple 4×3 grid
+const bentoFeatures: { title: string; desc: string; icon: LucideIcon }[] = [
+  { title: 'Process documents',      desc: 'PDFs, images and scans from any country',       icon: FileText },
+  { title: 'Detect type & origin',   desc: 'Language, category and institution',             icon: ScanSearch },
+  { title: 'Extract clinical data',  desc: 'Diagnoses, meds, labs and allergies',            icon: Brain },
+  { title: 'Standardise data',       desc: 'Coding, units and terminology',                  icon: Layers },
+  { title: 'Convert formats',        desc: 'Foreign formats to local standards',             icon: DatabaseZap },
+  { title: 'Pre-fill records',       desc: 'Structured records for the hospital',            icon: ClipboardList },
+  { title: 'Map medications',        desc: 'Foreign drugs to Swiss equivalents',             icon: Pill },
+  { title: 'Suggest alternatives',   desc: 'When exact matches are unavailable',             icon: Lightbulb },
+  { title: 'Flag missing data',      desc: 'Gaps and inconsistencies highlighted',           icon: Flag },
+  { title: 'Request input',          desc: 'Ask doctors to clarify ambiguities',             icon: MessageCircleQuestion },
+  { title: 'Escalate cases',         desc: 'Route complex cases to specialists',             icon: AlertTriangle },
+  { title: 'Hospital integration',   desc: 'Compatible with HIS and EHR systems',           icon: Hospital },
 ];
 
 const paths = [
@@ -408,64 +414,15 @@ function AgentIdentitySection() {
             }}>{text}</motion.span>
         ))}
 
-        {/* ── Phase 4: Bento Key Features — fade in, no fade out ── */}
+        {/* ── Phase 4: Feature Cards with hover animations ── */}
         {phase === 4 && (
           <motion.div
-            className="absolute inset-0 flex flex-col items-center justify-center px-4 z-20 bg-[#F5F5FF]"
+            className="absolute inset-0 z-20"
+            style={{ background: '#f3f3fb' }}
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}>
-            {/* Badge + Title */}
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-gray-200 bg-white/80 backdrop-blur-sm mb-6">
-              <div className="w-2 h-2 rounded-full" style={{ background: C.indigo }} />
-              <span className="text-xs font-bold tracking-widest uppercase" style={{ color: C.indigo }}>Key Features of AI Agent</span>
-            </div>
-            <div className="w-full max-w-5xl"
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(4, 1fr)',
-                gridTemplateRows: 'repeat(4, 1fr)',
-                gap: 10,
-                aspectRatio: '4 / 3.2',
-                maxHeight: '80vh',
-              }}>
-              {bentoFeatures.map(({ text, style: s, area }) => {
-                const isDark = s === 'dark';
-                const isGrad1 = s === 'grad1';
-                const isGrad2 = s === 'grad2';
-                const bg = isDark
-                  ? '#111'
-                  : isGrad1
-                    ? `linear-gradient(135deg, ${C.cyan} 0%, ${C.indigo} 100%)`
-                    : isGrad2
-                      ? `linear-gradient(135deg, ${C.deep} 0%, ${C.indigo} 60%, ${C.cyan} 100%)`
-                      : C.ice;
-                const useWhite = isGrad1 || isGrad2;
-                const useGradientText = isDark || (!isGrad1 && !isGrad2 && !isDark);
-
-                return (
-                  <div key={text}
-                    className="rounded-2xl flex items-center justify-center p-5"
-                    style={{
-                      gridArea: area,
-                      background: bg,
-                    }}>
-                    <p className="text-center font-extrabold text-lg md:text-xl lg:text-2xl leading-tight whitespace-pre-line"
-                      style={
-                        useWhite
-                          ? { color: 'white' }
-                          : {
-                              backgroundImage: isDark
-                                ? `linear-gradient(135deg, ${C.cyan}, ${C.indigo})`
-                                : `linear-gradient(135deg, ${C.deep}, ${C.indigo}, ${C.cyan})`,
-                              WebkitBackgroundClip: 'text',
-                              WebkitTextFillColor: 'transparent',
-                            }
-                      }>{text}</p>
-                  </div>
-                );
-              })}
-            </div>
+            <FeatureCards />
           </motion.div>
         )}
       </div>
@@ -1100,6 +1057,13 @@ export default function StoryPage({ onEnterApp }: { onEnterApp: () => void }) {
             </p>
           </FadeUp>
 
+          {/* Dashboard preview */}
+          <FadeUp className="mt-16 mb-24">
+            <div className="rounded-2xl overflow-hidden shadow-2xl border border-gray-200">
+              <img src={dashboardPreview} alt="Sano Doctor Dashboard" className="w-full h-auto" />
+            </div>
+          </FadeUp>
+
           {/* Infographic — How it works (scroll-animated) */}
           <HowItWorksFlow />
 
@@ -1268,6 +1232,8 @@ export default function StoryPage({ onEnterApp }: { onEnterApp: () => void }) {
       {/* ── AI AGENT IDENTITY (scroll-animated) ────────────────────────── */}
       <AgentIdentitySection />
 
+      <div className="h-32" style={{ background: '#f3f3fb' }} />
+
       {/* ── 3 PATHS ───────────────────────────────────────────────────────── */}
       <section
         className="relative py-32 px-6 overflow-hidden"
@@ -1283,6 +1249,15 @@ export default function StoryPage({ onEnterApp }: { onEnterApp: () => void }) {
             <p className="text-slate-400 mt-4 max-w-xl mx-auto">
               The system adapts to how much the patient uploads. In every case, the doctor receives a structured, pre-filled record ready to approve.
             </p>
+          </FadeUp>
+
+          {/* Patient portal preview */}
+          <FadeUp className="mb-16">
+            <div className="relative rounded-t-2xl overflow-hidden shadow-2xl border border-white/10 border-b-0 max-w-4xl mx-auto">
+              <img src={patientPreview} alt="Sano Patient Portal" className="w-full h-auto" />
+              <div className="absolute inset-x-0 bottom-0 h-40 pointer-events-none"
+                style={{ background: 'linear-gradient(to bottom, transparent 0%, #0f0e2e 100%)' }} />
+            </div>
           </FadeUp>
 
           <div className="grid md:grid-cols-3 gap-6">
@@ -1464,6 +1439,9 @@ export default function StoryPage({ onEnterApp }: { onEnterApp: () => void }) {
         <Particles />
         <div className="relative z-10 max-w-2xl mx-auto">
           <FadeUp>
+            <div className="max-w-lg mx-auto mb-10 rounded-2xl overflow-hidden shadow-2xl border border-white/10">
+              <img src={finalPreview} alt="Sano Doctor Portal preview" className="w-full h-auto" />
+            </div>
             <motion.div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-white/20 bg-white/10 backdrop-blur-sm text-white/70 text-sm font-medium mb-8">
               <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
               Live demo
