@@ -890,10 +890,9 @@ export default function StoryPage({ onEnterApp }: { onEnterApp: () => void }) {
 
           {/* Flow diagram */}
           <FadeUp delay={0.15}>
-            <div className="flex gap-4 items-stretch">
-
+            <div className="relative">
               {/* LEFT: two tracks stacked */}
-              <div className="flex-1 flex flex-col gap-5">
+              <div className="flex flex-col gap-5 pr-4" style={{ marginRight: '300px' }}>
 
                 {/* Swiss Resident track */}
                 <div>
@@ -914,6 +913,7 @@ export default function StoryPage({ onEnterApp }: { onEnterApp: () => void }) {
                       </p>
                       <p className="text-white/60 text-xs leading-snug">Referral letter or PDF sent manually</p>
                     </div>
+                    <ArrowRight className="w-5 h-5 flex-shrink-0 text-white/70" style={{ transform: 'rotate(30deg)' }} />
                   </div>
                 </div>
 
@@ -936,21 +936,16 @@ export default function StoryPage({ onEnterApp }: { onEnterApp: () => void }) {
                       </p>
                       <p className="text-white/60 text-xs leading-snug">First contact in CH with foreign documents</p>
                     </div>
+                    <ArrowRight className="w-5 h-5 flex-shrink-0 text-white/70" style={{ transform: 'rotate(-30deg)' }} />
                   </div>
                 </div>
 
               </div>
 
-              {/* CENTER: converging arrows */}
-              <div className="flex flex-col justify-around items-center py-8 flex-shrink-0 w-8">
-                <ArrowRight className="w-5 h-5 text-white/70" style={{ transform: 'rotate(30deg)' }} />
-                <ArrowRight className="w-5 h-5 text-white/70" style={{ transform: 'rotate(-30deg)' }} />
-              </div>
-
-              {/* RIGHT: Public Hospital shared card */}
+              {/* RIGHT: Public Hospital — absolutely positioned, aligned to boxes */}
               <motion.div
-                className="w-52 flex-shrink-0 rounded-2xl p-5 border-2 flex flex-col justify-center"
-                style={{ background: 'rgba(255,255,255,0.06)', borderColor: `${C.cyan}50` }}
+                className="absolute right-0 rounded-2xl p-6 border-2 flex flex-col justify-center"
+                style={{ top: '28px', bottom: '0', width: '300px', background: 'rgba(255,255,255,0.06)', borderColor: `${C.cyan}50` }}
                 initial={{ opacity: 0, x: 30 }} whileInView={{ opacity: 1, x: 0 }}
                 viewport={{ once: true }} transition={{ duration: 0.7, delay: 0.35, ease: [0.22,1,0.36,1] }}
               >
@@ -1439,8 +1434,44 @@ export default function StoryPage({ onEnterApp }: { onEnterApp: () => void }) {
         <Particles />
         <div className="relative z-10 max-w-2xl mx-auto">
           <FadeUp>
-            <div className="max-w-lg mx-auto mb-10 rounded-2xl overflow-hidden shadow-2xl border border-white/10">
-              <img src={finalPreview} alt="Sano Doctor Portal preview" className="w-full h-auto" />
+            <div className="relative max-w-lg mx-auto mb-10">
+              {/* Floating messages - LEFT */}
+              <motion.div
+                className="absolute -left-72 top-4 flex flex-col gap-3 items-end"
+                initial={{ opacity: 0, x: -30 }} whileInView={{ opacity: 1, x: 0 }}
+                viewport={{ once: true }} transition={{ duration: 0.6, delay: 0.3 }}
+              >
+                <div className="px-4 py-2.5 rounded-2xl rounded-br-sm text-xs font-medium text-white/90 max-w-56 text-left shadow-lg" style={{ background: 'rgba(61,53,232,0.35)', border: '1px solid rgba(255,255,255,0.1)' }}>
+                  🩺 Check drug interactions for Atorvastatin + Lisinopril
+                </div>
+                <div className="px-4 py-2.5 rounded-2xl rounded-br-sm text-xs font-medium text-white/90 max-w-56 text-left shadow-lg" style={{ background: 'rgba(62,207,207,0.2)', border: '1px solid rgba(255,255,255,0.1)' }}>
+                  📋 Summarize last 3 lab results
+                </div>
+                <div className="px-4 py-2.5 rounded-2xl rounded-br-sm text-xs font-medium text-white/90 max-w-56 text-left shadow-lg" style={{ background: 'rgba(61,53,232,0.25)', border: '1px solid rgba(255,255,255,0.1)' }}>
+                  🔄 Translate German discharge letter
+                </div>
+              </motion.div>
+
+              {/* Floating messages - RIGHT */}
+              <motion.div
+                className="absolute -right-72 top-4 flex flex-col gap-3 items-start"
+                initial={{ opacity: 0, x: 30 }} whileInView={{ opacity: 1, x: 0 }}
+                viewport={{ once: true }} transition={{ duration: 0.6, delay: 0.5 }}
+              >
+                <div className="px-4 py-2.5 rounded-2xl rounded-bl-sm text-xs font-medium text-white/90 max-w-56 text-left shadow-lg" style={{ background: 'rgba(62,207,207,0.2)', border: '1px solid rgba(255,255,255,0.1)' }}>
+                  📅 Schedule follow-up for next Tuesday
+                </div>
+                <div className="px-4 py-2.5 rounded-2xl rounded-bl-sm text-xs font-medium text-white/90 max-w-56 text-left shadow-lg" style={{ background: 'rgba(61,53,232,0.35)', border: '1px solid rgba(255,255,255,0.1)' }}>
+                  ⚠️ Flag missing allergy documentation
+                </div>
+                <div className="px-4 py-2.5 rounded-2xl rounded-bl-sm text-xs font-medium text-white/90 max-w-56 text-left shadow-lg" style={{ background: 'rgba(61,53,232,0.25)', border: '1px solid rgba(255,255,255,0.1)' }}>
+                  💊 Map foreign medication to Swiss equivalent
+                </div>
+              </motion.div>
+
+              <div className="rounded-2xl overflow-hidden shadow-2xl border border-white/10">
+                <img src={finalPreview} alt="Sano Doctor Portal preview" className="w-full h-auto" />
+              </div>
             </div>
             <motion.div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-white/20 bg-white/10 backdrop-blur-sm text-white/70 text-sm font-medium mb-8">
               <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
